@@ -1,0 +1,577 @@
+/*
+  Palette reprise à l'identique de l'application iOS.
+
+  Principe directeur : l'ambre et l'indigo sont réservés aux moments
+  pédagogiques. Ils n'apparaissent jamais pour décorer. Quand le joueur voit de
+  l'ambre, cela signifie toujours « voici la preuve du raisonnement ».
+  Le reste de l'interface se tient en encre et ardoise.
+*/
+
+:root {
+  --paper: #f7f8fa;
+  --cell-plain: #ffffff;
+  --cell-related: #edf0f4;
+  --cell-selected: #d9e2ec;
+  --cell-twin: #e3e9f0;
+
+  --hairline: #c9d1da;
+  --block-line: #1b2430;
+
+  --given: #1b2430;
+  --entry: #0f766e;
+  --mistake: #b3261e;
+  --note: #7a8794;
+
+  /* Réservé à l'enseignement */
+  --premise: #f2c14e;
+  --premise-ink: #6b4e00;
+  --pivot: #e08a2b;
+  --target: #6c5ce7;
+
+  --ink: #1b2430;
+  --slate: #5a6b7c;
+
+  --surface: #ffffff;
+  --shadow: 0 1px 3px rgba(27, 36, 48, 0.08), 0 6px 20px rgba(27, 36, 48, 0.06);
+
+  --digit: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  --lesson: ui-serif, Georgia, "Times New Roman", serif;
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12161b;
+    --cell-plain: #1a2029;
+    --cell-related: #222a34;
+    --cell-selected: #2e3a47;
+    --cell-twin: #28323d;
+
+    --hairline: #323c48;
+    --block-line: #8a99a8;
+
+    --given: #e8edf2;
+    --entry: #4dd4c4;
+    --mistake: #ff8a80;
+    --note: #8a99a8;
+
+    --premise: #8a6d1f;
+    --premise-ink: #f7d77a;
+    --pivot: #b4711c;
+    --target: #8b7ef0;
+
+    --ink: #e8edf2;
+    --slate: #93a2b1;
+
+    --surface: #1a2029;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui);
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+}
+
+#app {
+  width: 100%;
+  max-width: 460px;
+  padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+
+.hidden { display: none !important; }
+
+/* ------------------------------------------------------------------ Accueil */
+
+.brand { text-align: center; padding: 18px 0 4px; }
+
+.brand h1 {
+  font-family: var(--lesson);
+  font-size: 34px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.brand p {
+  font-family: var(--lesson);
+  font-size: 14px;
+  color: var(--slate);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin: 4px 2px;
+}
+
+.levels { display: flex; flex-direction: column; gap: 8px; }
+
+.level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+  transition: transform 0.12s ease;
+}
+
+.level:active { transform: scale(0.985); }
+.level .name { font-size: 16px; font-weight: 500; }
+.level .meta { font-size: 12px; color: var(--slate); font-family: var(--lesson); }
+
+.wide-button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.ghost-button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.daily {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.daily.done { background: color-mix(in srgb, var(--entry) 12%, var(--surface)); }
+
+.daily .label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+.daily .title { font-size: 17px; font-weight: 500; margin-top: 2px; }
+.daily .streak { font-family: var(--lesson); font-size: 13px; color: var(--slate); margin-top: 4px; }
+
+/* -------------------------------------------------------------- Grade */
+
+.grade-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.grade-banner .rank { font-size: 16px; font-weight: 500; }
+.grade-banner .points { font-size: 12px; color: var(--slate); font-family: var(--lesson); }
+
+.emblem { flex: 0 0 auto; }
+
+.progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cell-related);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill { height: 100%; background: var(--premise); border-radius: 3px; }
+
+.grade-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.grade-row:last-child { border-bottom: none; }
+.grade-row.current .rank-name { font-weight: 600; }
+.grade-row .rank-name { font-size: 15px; }
+.grade-row .rank-cost { font-size: 12px; color: var(--slate); margin-left: auto; font-family: var(--lesson); }
+.grade-row.locked { opacity: 0.45; }
+
+.motto {
+  font-family: var(--lesson);
+  font-style: italic;
+  color: var(--slate);
+  font-size: 14px;
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+/* ------------------------------------------------------------- En-tête jeu */
+
+.game-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 17px;
+}
+
+.header-info { flex: 1; min-width: 0; }
+.header-info .level-name { font-size: 15px; font-weight: 500; }
+.header-info .sub { font-size: 11px; color: var(--slate); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.header-stats { text-align: right; font-size: 12px; color: var(--slate); font-variant-numeric: tabular-nums; }
+.header-stats .score { font-size: 15px; color: var(--ink); font-weight: 500; }
+
+.gain {
+  color: var(--premise-ink);
+  font-family: var(--lesson);
+  animation: rise 1.1s ease forwards;
+}
+
+@keyframes rise {
+  0% { opacity: 0; transform: translateY(4px); }
+  25% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+/* -------------------------------------------------------------- La grille */
+
+.grid-wrap { position: relative; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  aspect-ratio: 1;
+  background: var(--hairline);
+  border: 2px solid var(--block-line);
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 1px;
+  touch-action: manipulation;
+}
+
+.cell {
+  position: relative;
+  background: var(--cell-plain);
+  display: grid;
+  place-items: center;
+  font-family: var(--digit);
+  font-size: clamp(17px, 5.2vw, 24px);
+  font-weight: 500;
+  color: var(--entry);
+  user-select: none;
+}
+
+.cell.given { color: var(--given); }
+.cell.wrong { color: var(--mistake); }
+.cell.related { background: var(--cell-related); }
+.cell.twin { background: var(--cell-twin); }
+.cell.selected { background: var(--cell-selected); }
+
+/* Bordures de bloc dessinées en ombre interne : pas de décalage de grille. */
+.cell.edge-r { box-shadow: inset -2px 0 0 var(--block-line); }
+.cell.edge-b { box-shadow: inset 0 -2px 0 var(--block-line); }
+.cell.edge-r.edge-b { box-shadow: inset -2px 0 0 var(--block-line), inset 0 -2px 0 var(--block-line); }
+
+/* Marques pédagogiques */
+.cell.unit { background: color-mix(in srgb, var(--premise) 12%, var(--cell-plain)); }
+.cell.premise { background: color-mix(in srgb, var(--premise) 42%, var(--cell-plain)); }
+.cell.pivot { background: color-mix(in srgb, var(--premise) 42%, var(--cell-plain)); box-shadow: inset 0 0 0 3px var(--pivot); }
+.cell.target::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border: 2.5px solid var(--target);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.notes {
+  position: absolute;
+  inset: 2px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  font-size: clamp(7px, 2.1vw, 10px);
+  color: var(--note);
+  font-weight: 500;
+}
+
+.notes span { display: grid; place-items: center; }
+.notes span.lit { color: var(--premise-ink); font-weight: 700; }
+.notes span.cut { color: var(--target); font-weight: 700; }
+
+/* ------------------------------------------------------------- Commandes */
+
+.controls { display: flex; flex-direction: column; gap: 8px; }
+
+.actions { display: flex; gap: 8px; }
+
+.action {
+  flex: 1;
+  padding: 9px 4px;
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  color: var(--slate);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.action .glyph { font-size: 16px; color: var(--ink); }
+.action.on { background: var(--cell-selected); }
+.action.on .glyph { color: var(--ink); }
+.action.teach .glyph, .action.teach { color: var(--premise-ink); }
+
+.pad { display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; }
+
+.pad button {
+  aspect-ratio: 0.82;
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-family: var(--digit);
+  font-size: clamp(16px, 4.6vw, 21px);
+  font-weight: 500;
+}
+
+.pad button:active { background: var(--cell-selected); }
+.pad button.spent { opacity: 0.3; }
+
+/* ------------------------------------------------------------ Carte indice */
+
+.hint {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--premise);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hint h3 {
+  margin: 0;
+  font-family: var(--lesson);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--premise-ink);
+}
+
+.hint .body {
+  font-family: var(--lesson);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.hint .body.open { max-height: none; }
+.hint .worth { font-family: var(--lesson); font-size: 12px; color: var(--slate); }
+.hint .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.hint .primary {
+  padding: 8px 14px;
+  border-radius: 9px;
+  background: var(--premise-ink);
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hint .secondary { font-size: 12px; color: var(--slate); padding: 8px 4px; }
+
+/* --------------------------------------------------------------- Écrans */
+
+.screen { display: flex; flex-direction: column; gap: 12px; }
+
+.top-bar { display: flex; align-items: center; gap: 10px; }
+.top-bar h2 { margin: 0; font-size: 19px; font-weight: 600; font-family: var(--lesson); }
+
+.tech-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.tech-row .cost {
+  font-family: var(--digit);
+  font-size: 12px;
+  color: var(--premise-ink);
+  background: color-mix(in srgb, var(--premise) 25%, transparent);
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.tech-row .tname { font-size: 15px; }
+.tech-row .tmastery { font-size: 11px; color: var(--slate); font-family: var(--lesson); }
+
+.principle {
+  font-family: var(--lesson);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.example-tabs { display: flex; gap: 8px; }
+
+.example-tabs button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+.example-tabs button.on { background: var(--cell-selected); font-weight: 600; }
+
+.lesson-text {
+  font-family: var(--lesson);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------- Victoire */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.result {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  max-height: 88dvh;
+  overflow-y: auto;
+}
+
+.result h2 { margin: 0 0 4px; font-family: var(--lesson); font-size: 26px; }
+.result .sub { color: var(--slate); font-family: var(--lesson); font-size: 14px; }
+
+.total {
+  font-family: var(--digit);
+  font-size: 40px;
+  font-weight: 600;
+  text-align: center;
+  margin: 14px 0 2px;
+  color: var(--premise-ink);
+}
+
+.total-label { text-align: center; font-size: 12px; color: var(--slate); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.breakdown { margin: 16px 0; display: flex; flex-direction: column; gap: 2px; }
+
+.break-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+
+.break-row:last-child { border-bottom: none; }
+.break-row .bt { flex: 1; }
+.break-row .bc { color: var(--slate); font-family: var(--lesson); font-size: 12px; }
+.break-row .bp { font-family: var(--digit); font-variant-numeric: tabular-nums; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  z-index: 60;
+  animation: toast 2.4s ease forwards;
+  max-width: 88vw;
+  text-align: center;
+}
+
+@keyframes toast {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}

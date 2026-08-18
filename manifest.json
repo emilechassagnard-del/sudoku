@@ -1,0 +1,16 @@
+{
+  "name": "Sudoku — un indice nomme un raisonnement",
+  "short_name": "Sudoku",
+  "description": "Un Sudoku qui explique. L'indice ne donne pas un chiffre : il nomme un raisonnement.",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F8FA",
+  "theme_color": "#F7F8FA",
+  "lang": "fr",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
