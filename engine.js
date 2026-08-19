@@ -738,6 +738,80 @@ export function finderFor(technique) {
   return FINDERS.find((f) => f.technique === technique);
 }
 
+// MARK: - Justifier un coup précis
+//
+// nextStep répond à « que faire maintenant ». Ce n'est pas la même question que
+// « qu'a-t-il fallu voir pour poser CE chiffre-là ».
+//
+// La différence compte pour le score. Un joueur qui repère un X-Wing pendant
+// qu'un singleton nu traîne à l'autre bout de la grille a fait le travail du
+// X-Wing, et nextStep répondrait « singleton nu ». Créditer d'après nextStep
+// revient à payer le raisonnement le plus paresseux qui existait ailleurs.
+
+/** Le chiffre est-il le seul candidat restant de la case. */
+function isNakedSingleAt(board, cell, digit) {
+  return board.values[cell] === 0 && soleDigit(board.candidates[cell]) === digit;
+}
+
+/** Le chiffre n'a-t-il plus qu'une place dans l'une des unités de la case. */
+function isHiddenSingleAt(board, cell, digit) {
+  if (board.values[cell] !== 0) return false;
+  if (!hasDigit(board.candidates[cell], digit)) return false;
+  return Geometry.unitsOf[cell].some((unit) => {
+    if (board.containsDigit(digit, unit)) return false;
+    const spots = board.positionsOf(digit, unit);
+    return spots.length === 1 && spots[0] === cell;
+  });
+}
+
+/** Le placement se lit-il directement, sans élimination préalable. */
+function readsDirectly(board, cell, digit) {
+  if (isNakedSingleAt(board, cell, digit)) return "nakedSingle";
+  if (isHiddenSingleAt(board, cell, digit)) return "hiddenSingle";
+  return null;
+}
+
+/**
+ * Applique toutes les éliminations que cette technique sait produire.
+ *
+ * On boucle parce qu'un chercheur ne rend qu'une déduction à la fois : après
+ * l'avoir appliquée, la suivante devient trouvable. Les techniques concernées
+ * ne posent aucun chiffre, donc la boucle s'arrête d'elle-même.
+ */
+function exhaust(finder, board, limit = 60) {
+  const work = board.clone();
+  for (let i = 0; i < limit; i++) {
+    const deduction = finder.find(work);
+    if (!deduction) break;
+    work.apply(deduction);
+  }
+  return work;
+}
+
+/**
+ * Le raisonnement le moins coûteux qui suffit à justifier ce placement.
+ *
+ * Renvoie null quand aucune technique du catalogue ne le justifie : le joueur a
+ * deviné, ou s'est appuyé sur un motif que l'app ne connaît pas. Dans les deux
+ * cas, on préfère ne rien créditer plutôt que d'inventer un mérite.
+ *
+ * @param {Board} board  La position AVANT le coup.
+ */
+export function justificationFor(board, cell, digit) {
+  const direct = readsDirectly(board, cell, digit);
+  if (direct) return direct;
+
+  // Le placement demande des éliminations. On cherche la technique la moins
+  // chère qui, une fois épuisée, rend le chiffre lisible.
+  for (const finder of FINDERS) {
+    if (finder.technique === "nakedSingle" || finder.technique === "hiddenSingle") continue;
+    const after = exhaust(finder, board);
+    if (readsDirectly(after, cell, digit)) return finder.technique;
+  }
+
+  return null;
+}
+
 export function solve(board, finders = FINDERS) {
   const current = board.clone();
   const steps = [];

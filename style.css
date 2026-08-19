@@ -578,3 +578,36 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   85% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ------------------------------------------------------------- Panneaux */
+
+.panel { max-width: 400px; }
+.panel h2 { font-size: 22px; margin-bottom: 10px; }
+.panel .lesson-text { margin: 0 0 12px; }
+.panel .lesson-text strong { font-weight: 700; }
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 16px;
+}
+
+.setting-name { font-size: 15px; font-weight: 500; }
+.setting-note { font-size: 12px; color: var(--slate); font-family: var(--lesson); margin-top: 3px; }
+
+.pill {
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: var(--cell-related);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill.on { background: var(--cell-selected); }
+
+.icon-button.on { background: var(--cell-selected); }

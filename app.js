@@ -15,6 +15,7 @@ import {
   hasDigit,
   countBits,
   ALL,
+  nextStep as moteurNextStep,
 } from "./engine.js";
 
 import {
@@ -46,6 +47,7 @@ const state = {
   showPattern: false,
   showLesson: false,
   hintOpen: false,
+  panel: null, // null | "settings" | "confirm-candidates" | "confirm-hint"
   result: null,
 };
 
@@ -326,7 +328,13 @@ function renderGame() {
   header.appendChild(
     el(`<div class="header-info">
       <div class="level-name">${DIFFICULTY_NAME[game.difficulty]}</div>
-      <div class="sub">${game.dailyDay !== null ? "Défi du jour" : describeLevel(game.difficulty)}</div>
+      <div class="sub">${
+        game.autoCandidates
+          ? "Candidats affichés"
+          : game.dailyDay !== null
+            ? "Défi du jour"
+            : describeLevel(game.difficulty)
+      }</div>
     </div>`)
   );
 
@@ -338,6 +346,16 @@ function renderGame() {
       <div>${formatTime(game.elapsed)}</div>
     </div>`)
   );
+
+  const settings = el(
+    `<button class="icon-button ${game.autoCandidates ? "on" : ""}">⚙</button>`
+  );
+  settings.onclick = () => {
+    state.panel = "settings";
+    render();
+  };
+  header.appendChild(settings);
+
   screen.appendChild(header);
 
   // Grille, avec les marques de l'indice si le palier les autorise
@@ -378,10 +396,8 @@ function renderHintCard(game, hint) {
 
   // Ce que ce passage vaut encore. Annoncé avant l'appui, jamais après : le
   // joueur doit pouvoir choisir en connaissance de cause.
-  const neutralised = game.candidatesSeenThisPass && isSolvedByCandidates(game.currentObstacle);
-  const worth = game.currentObstacle
-    ? COST[game.currentObstacle] * game.shareFor(game.currentObstacle)
-    : 0;
+  const neutralised = game.candidatesSeenThisPass && isSolvedByCandidates(technique);
+  const worth = COST[technique] * game.shareFor(technique);
   card.appendChild(
     el(`<div class="worth">${
       neutralised
@@ -395,7 +411,11 @@ function renderHintCard(game, hint) {
   const row = el(`<div class="row"></div>`);
 
   if (hint.stage !== "explained") {
-    const label = hint.stage === "named" ? "Me montrer où" : "M'expliquer";
+    const apres = hint.stage === "named" ? ASSISTANCE.located : ASSISTANCE.given;
+    const reste = neutralised ? 0 : COST[technique] * apres;
+    const label =
+      (hint.stage === "named" ? "Me montrer où" : "M'expliquer") +
+      (reste > 0 ? ` — ${reste} pts` : " — 0 pt");
     const next = el(`<button class="primary">${label}</button>`);
     next.onclick = () => {
       game.askForHint();
@@ -460,19 +480,16 @@ function renderControls(game) {
   };
   actions.appendChild(notes);
 
-  const cands = el(
-    `<div class="action ${game.autoCandidates ? "on" : ""}"><span class="glyph">⠿</span>Candidats</div>`
-  );
-  cands.onclick = () => {
-    game.toggleCandidates();
-    if (game.autoCandidates) noter("candidats-actives");
-    vibrate();
-    render();
-  };
-  actions.appendChild(cands);
-
   const hint = el(`<div class="action teach"><span class="glyph">◆</span>Indice</div>`);
   hint.onclick = () => {
+    // Le premier palier coûte la moitié du passage : le joueur doit le savoir
+    // avant d'appuyer, pas après. Les paliers suivants annoncent leur prix sur
+    // le bouton lui-même, la carte étant déjà ouverte.
+    if (!game.hint) {
+      state.panel = "confirm-hint";
+      render();
+      return;
+    }
     game.askForHint();
     if (game.hint) noter(`indice-${game.hint.stage}`);
     render();
@@ -740,6 +757,150 @@ function renderGrades() {
   return screen;
 }
 
+
+// MARK: - Panneaux
+//
+// Trois usages, un seul gabarit : un titre, un texte en serif, des issues
+// explicites. Le texte dit toujours ce que la décision coûte, avant qu'elle
+// soit prise — jamais après.
+
+function renderPanel() {
+  const game = state.game;
+  const overlay = el(`<div class="overlay"></div>`);
+  const card = el(`<div class="result panel"></div>`);
+
+  const fermer = () => {
+    state.panel = null;
+    render();
+  };
+  overlay.onclick = (e) => {
+    if (e.target === overlay) fermer();
+  };
+
+  if (state.panel === "settings") {
+    card.appendChild(el(`<h2>Réglages</h2>`));
+    card.appendChild(
+      el(`<p class="lesson-text" style="color:var(--slate)">Ce qui touche au
+        raisonnement se règle ici, à l'écart du jeu — pour qu'aucun de ces choix
+        ne se fasse par un geste distrait.</p>`)
+    );
+
+    const ligne = el(`<div class="setting"></div>`);
+    ligne.appendChild(
+      el(`<div style="flex:1">
+        <div class="setting-name">Candidats automatiques</div>
+        <div class="setting-note">${
+          game.autoCandidates ? "Activés" : "Désactivés"
+        } — l'app fait le balayage à votre place.</div>
+      </div>`)
+    );
+    const bouton = el(
+      `<button class="pill ${game.autoCandidates ? "on" : ""}">${
+        game.autoCandidates ? "Désactiver" : "Activer"
+      }</button>`
+    );
+    bouton.onclick = () => {
+      if (game.autoCandidates) {
+        // Éteindre ne coûte rien : aucune confirmation à demander.
+        game.toggleCandidates();
+        state.panel = null;
+      } else {
+        state.panel = "confirm-candidates";
+      }
+      render();
+    };
+    ligne.appendChild(bouton);
+    card.appendChild(ligne);
+
+    const retour = el(`<button class="wide-button">Fermer</button>`);
+    retour.onclick = fermer;
+    card.appendChild(retour);
+  }
+
+  if (state.panel === "confirm-candidates") {
+    card.appendChild(el(`<h2>Avant d'activer</h2>`));
+    card.appendChild(
+      el(`<div>
+        <p class="lesson-text">Les candidats affichés font le balayage :
+        regarder la ligne, la colonne, le bloc, et barrer. C'est un inventaire,
+        pas un raisonnement.</p>
+        <p class="lesson-text">Ils achèvent donc entièrement deux techniques — le
+        singleton nu et le singleton caché. <strong>Ces passages ne rapporteront
+        plus rien</strong> tant que les candidats resteront affichés.</p>
+        <p class="lesson-text">Les onze autres gardent leur pleine valeur. Une
+        grille annotée ne dit pas où est le X-Wing : sur les grilles difficiles,
+        c'est un outil de travail, et vous n'y perdez presque rien.</p>
+      </div>`)
+    );
+
+    const oui = el(`<button class="wide-button">Activer quand même</button>`);
+    oui.onclick = () => {
+      game.toggleCandidates();
+      noter("candidats-actives");
+      state.panel = null;
+      render();
+    };
+    card.appendChild(oui);
+
+    const non = el(`<button class="ghost-button" style="margin-top:8px">Annuler</button>`);
+    non.onclick = () => {
+      state.panel = "settings";
+      render();
+    };
+    card.appendChild(non);
+  }
+
+  if (state.panel === "confirm-hint") {
+    // Ce que l'indice va réellement coûter, calculé sur le motif que le moteur
+    // s'apprête à nommer — pas sur une estimation.
+    const deduction = nextStepFor(game);
+    const technique = deduction?.technique ?? null;
+    const plein = technique ? COST[technique] * ASSISTANCE.none : 0;
+    const apres = technique ? COST[technique] * ASSISTANCE.named : 0;
+    const perdu = technique && game.shareFor(technique) === 0;
+
+    card.appendChild(el(`<h2>Prendre un indice</h2>`));
+    card.appendChild(
+      el(`<p class="lesson-text">L'indice ne donnera pas de chiffre : il nommera
+        le raisonnement à tenir, et vous laissera le trouver.</p>`)
+    );
+    card.appendChild(
+      el(`<p class="lesson-text">${
+        !technique
+          ? "Aucun raisonnement connu ne s'applique ici."
+          : perdu
+            ? "Ce passage ne rapporte déjà plus de points : l'indice ne vous coûtera rien."
+            : `Ce passage vaut <strong>${plein} points</strong>. Le nommer le ramènera à <strong>${apres}</strong>. Voir les cases le divisera encore, et l'explication complète le ramènera à zéro.`
+      }</p>`)
+    );
+
+    const oui = el(`<button class="wide-button">Nommer le raisonnement</button>`);
+    oui.onclick = () => {
+      state.panel = null;
+      game.askForHint();
+      if (game.hint) noter(`indice-${game.hint.stage}`);
+      render();
+    };
+    card.appendChild(oui);
+
+    const non = el(`<button class="ghost-button" style="margin-top:8px">Chercher encore</button>`);
+    non.onclick = fermer;
+    card.appendChild(non);
+  }
+
+  overlay.appendChild(card);
+  return overlay;
+}
+
+/** Le motif que l'indice nommerait, sans engager d'aide. */
+function nextStepFor(game) {
+  try {
+    return moteurNextStep(game.board);
+  } catch {
+    return null;
+  }
+}
+
 // MARK: - Chronomètre
 
 function startTimer() {
@@ -788,6 +949,7 @@ function render() {
       app.appendChild(renderHome());
   }
 
+  if (state.panel && state.game) app.appendChild(renderPanel());
   if (state.result) app.appendChild(renderResult());
 }
 

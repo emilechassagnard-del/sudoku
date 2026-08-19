@@ -17,6 +17,7 @@ import {
   digitsOf,
   countBits,
   nextStep,
+  justificationFor,
 } from "./engine.js";
 
 // MARK: - Barème d'aide
@@ -252,12 +253,12 @@ export class Game {
     this.solo = {};
     this.assisted = {};
     this.assistance = "none";
+    this.assistedTechnique = null;
     this.lastGain = null;
 
     this.board = this.puzzle.clone();
     this.refreshBoard();
     this.currentObstacle = nextStep(this.board)?.technique ?? null;
-    this.lastSignature = this.signature;
   }
 
   // MARK: État dérivé
@@ -358,6 +359,10 @@ export class Game {
       return;
     }
 
+    // La position d'AVANT le coup : c'est sur elle que se juge le raisonnement.
+    const before = this.board.clone();
+    let played = null;
+
     if (this.entries[cell] === digit) {
       this.entries[cell] = 0;
     } else {
@@ -366,11 +371,12 @@ export class Game {
       if (digit === this.solutionAt(cell)) {
         // Un chiffre juste rend caduques les notes des voisins.
         for (const peer of Geometry.peers[cell]) this.notes[peer] &= ~maskOf(digit);
+        played = { cell, digit, before };
       } else {
         this.mistakes++;
       }
     }
-    this.finishMove();
+    this.finishMove(played);
   }
 
   erase() {
@@ -403,10 +409,11 @@ export class Game {
     this.persist();
   }
 
-  finishMove() {
+  finishMove(played = null) {
     this.refreshBoard();
     this.hint = null;
-    this.creditProgress();
+    if (played) this.creditMove(played);
+    this.currentObstacle = nextStep(this.board)?.technique ?? null;
     if (this.isComplete) {
       clearSaved();
       if (this.dailyDay !== null) Daily.markDone(this.dailyDay);
@@ -432,46 +439,63 @@ export class Game {
    */
   shareFor(technique) {
     if (this.candidatesSeenThisPass && isSolvedByCandidates(technique)) return 0;
+    // Un indice pris sur un autre motif ne retire rien ici : le joueur a
+    // regardé ailleurs, puis résolu celui-ci par ses propres moyens.
+    if (this.assistedTechnique && this.assistedTechnique !== technique) {
+      return ASSISTANCE.none;
+    }
     return ASSISTANCE[this.assistance];
   }
 
   /**
-   * Crédite l'obstacle qui vient d'être franchi, puis mesure le suivant.
+   * Crédite le raisonnement qu'il a fallu tenir pour poser ce chiffre.
    *
-   * Ce qui est crédité, c'est l'obstacle d'avant le coup. Le moteur garantit
-   * qu'à cet instant aucune technique moins coûteuse ne s'appliquait ailleurs :
-   * avancer supposait donc réellement de voir celle-là.
+   * On ne crédite pas « la technique la plus simple disponible sur la grille » :
+   * cette question-là ne dit rien de ce qu'a fait le joueur. Un singleton nu
+   * traîne presque toujours quelque part, si bien que l'ancienne mesure rendait
+   * « singleton nu » à peu près tout le temps, y compris quand le joueur venait
+   * de démêler un Swordfish à l'autre bout.
    *
-   * Une saisie fausse ne crédite rien et ne remet rien à zéro — le joueur n'a
-   * pas franchi le passage, il est toujours devant.
+   * On demande donc : quel est le raisonnement le moins coûteux qui suffit à
+   * justifier CE chiffre, dans CETTE case ? C'est calculable exactement, et
+   * c'est ce que le joueur a au minimum dû voir.
+   *
+   * Le « moins coûteux qui suffit » reste une borne basse : si le joueur a pris
+   * un chemin plus savant que nécessaire, on ne peut pas le deviner, et le
+   * créditer davantage reviendrait à inventer. Mieux vaut sous-estimer
+   * honnêtement que surestimer au hasard.
+   *
+   * Une saisie fausse ne crédite rien et ne consomme rien : le joueur n'a pas
+   * franchi le passage, il est toujours devant.
    */
-  creditProgress() {
+  creditMove({ cell, digit, before }) {
     if (this.hasMistakes) return;
 
-    const advanced = this.signature !== this.lastSignature;
-    if (this.currentObstacle && advanced) {
-      const technique = this.currentObstacle;
-      const share = this.shareFor(technique);
-      const earned = COST[technique] * share;
-      const unaided = share === ASSISTANCE.none;
-
-      const before = this.gameQuarters;
-      this.gameQuarters += earned;
-      const gain = this.gameQuarters - before;
-      this.lastGain = gain > 0 ? gain : null;
-
-      this.quartersByTechnique[technique] = (this.quartersByTechnique[technique] ?? 0) + earned;
-      if (unaided) this.solo[technique] = (this.solo[technique] ?? 0) + 1;
-      else this.assisted[technique] = (this.assisted[technique] ?? 0) + 1;
-
-      Progress.record(technique, earned, unaided);
-
-      this.assistance = "none";
-      this.candidatesSeenThisPass = this.autoCandidates;
+    const technique = justificationFor(before, cell, digit);
+    // Aucune technique du catalogue ne justifie ce coup : le joueur a deviné,
+    // ou s'est appuyé sur un motif que l'app ne sait pas nommer. On ne crédite
+    // rien plutôt que d'attribuer un mérite arbitraire.
+    if (!technique) {
+      this.lastGain = null;
+      return;
     }
 
-    this.currentObstacle = nextStep(this.board)?.technique ?? null;
-    this.lastSignature = this.signature;
+    const share = this.shareFor(technique);
+    const earned = COST[technique] * share;
+    const unaided = share === ASSISTANCE.none;
+
+    this.gameQuarters += earned;
+    this.lastGain = earned > 0 ? earned : null;
+
+    this.quartersByTechnique[technique] = (this.quartersByTechnique[technique] ?? 0) + earned;
+    if (unaided) this.solo[technique] = (this.solo[technique] ?? 0) + 1;
+    else this.assisted[technique] = (this.assisted[technique] ?? 0) + 1;
+
+    Progress.record(technique, earned, unaided);
+
+    this.assistance = "none";
+    this.assistedTechnique = null;
+    this.candidatesSeenThisPass = this.autoCandidates;
   }
 
   get gamePoints() {
@@ -511,7 +535,8 @@ export class Game {
     if (!this.hint || this.hint.deduction.technique !== deduction.technique) {
       this.hint = { deduction, stage: "named" };
       this.hintsUsed++;
-      if (this.assistance === "none") this.assistance = "named";
+      this.assistance = "named";
+      this.assistedTechnique = deduction.technique;
       return;
     }
 
@@ -528,13 +553,20 @@ export class Game {
   applyHint() {
     if (!this.hint) return;
     this.snapshot();
-    this.assistance = "given";
     const deduction = this.hint.deduction;
+    this.assistance = "given";
+    this.assistedTechnique = deduction.technique;
+    const before = this.board.clone();
+    let played = null;
     for (const action of deduction.actions) {
-      if (action.kind === "place") this.entries[action.cell] = action.digit;
-      else this.eliminated[action.cell] |= action.digits;
+      if (action.kind === "place") {
+        this.entries[action.cell] = action.digit;
+        played = { cell: action.cell, digit: action.digit, before };
+      } else {
+        this.eliminated[action.cell] |= action.digits;
+      }
     }
-    this.finishMove();
+    this.finishMove(played);
   }
 
   dismissHint() {
@@ -591,7 +623,6 @@ export class Game {
       game.assisted = s.assisted ?? {};
       game.refreshBoard();
       game.currentObstacle = nextStep(game.board)?.technique ?? null;
-      game.lastSignature = game.signature;
       return game;
     } catch {
       return null;
