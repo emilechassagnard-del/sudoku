@@ -29,6 +29,7 @@ import {
   dayNumber,
   dailyLevel,
   hasSaved,
+  hasSavedDaily,
   clearSaved,
   formatTime,
   ASSISTANCE,
@@ -146,15 +147,34 @@ function renderHome() {
   banner.onclick = () => go("grades");
   screen.appendChild(banner);
 
+  const enCours = !doneToday && hasSavedDaily(day);
+  const score = Daily.scoreOf(day);
+
   const daily = el(`<button class="daily ${doneToday ? "done" : ""}">
     <div style="flex:1">
       <div class="label">Défi du jour</div>
-      <div class="title">${DIFFICULTY_NAME[dailyLevel(day)]}${doneToday ? " — terminé" : ""}</div>
-      ${streak > 0 ? `<div class="streak">Série de ${streak} jour${streak > 1 ? "s" : ""}</div>` : ""}
+      <div class="title">${DIFFICULTY_NAME[dailyLevel(day)]}${
+        doneToday ? " — terminé" : enCours ? " — en cours" : ""
+      }</div>
+      ${
+        doneToday && score !== null
+          ? `<div class="streak">${score} point${score > 1 ? "s" : ""} de raisonnement</div>`
+          : streak > 0
+            ? `<div class="streak">Série de ${streak} jour${streak > 1 ? "s" : ""}</div>`
+            : ""
+      }
     </div>
-    <div style="font-size:22px">${doneToday ? "✓" : "→"}</div>
+    <div style="font-size:22px">${doneToday ? "✓" : enCours ? "↺" : "→"}</div>
   </button>`);
-  daily.onclick = () => startDaily();
+
+  // Un défi terminé ne se rejoue pas : la grille est la même pour tout le
+  // monde, et la recommencer permettrait d'encaisser deux fois les mêmes
+  // raisonnements. La carte devient un simple constat.
+  if (doneToday) {
+    daily.disabled = true;
+  } else {
+    daily.onclick = () => startDaily();
+  }
   screen.appendChild(daily);
 
   if (hasSaved()) {
@@ -224,6 +244,22 @@ function startNew(level) {
 
 function startDaily() {
   const day = dayNumber();
+
+  if (Daily.isDone(day)) {
+    toast("Le défi du jour est déjà terminé.");
+    return;
+  }
+
+  // Une partie entamée se reprend là où elle en était.
+  if (hasSavedDaily(day)) {
+    const reprise = Game.restore("defi");
+    if (reprise) {
+      state.game = reprise;
+      go("game");
+      return;
+    }
+  }
+
   const record = Library.daily(day);
   if (!record) {
     toast("Le défi du jour est indisponible.");

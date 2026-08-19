@@ -68,7 +68,11 @@ export function gradeProgress(points) {
 // MARK: - Mémoire durable
 
 const STORE_KEY = "sudoku.progress";
+// Deux sauvegardes séparées. Le défi du jour et les parties libres partageaient
+// le même emplacement : lancer une partie libre effaçait le défi entamé, qui
+// repartait de zéro — et pouvait alors rapporter des points une seconde fois.
 const GAME_KEY = "sudoku.partie";
+const DAILY_KEY = "sudoku.defi";
 
 function readJSON(key, fallback) {
   try {
@@ -94,6 +98,7 @@ export const Progress = {
     soloByTechnique: {},
     played: [],
     dailyDone: [],
+    dailyScores: {},
   }),
 
   save() {
@@ -129,7 +134,14 @@ export const Progress = {
   },
 
   reset() {
-    this.data = { quarters: 0, byTechnique: {}, soloByTechnique: {}, played: [], dailyDone: [] };
+    this.data = {
+      quarters: 0,
+      byTechnique: {},
+      soloByTechnique: {},
+      played: [],
+      dailyDone: [],
+      dailyScores: {},
+    };
     this.save();
   },
 };
@@ -154,11 +166,18 @@ export const Daily = {
   isDone(day = dayNumber()) {
     return Progress.data.dailyDone.includes(day);
   },
-  markDone(day = dayNumber()) {
+  markDone(day = dayNumber(), points = null) {
     if (!this.isDone(day)) {
       Progress.data.dailyDone.push(day);
-      Progress.save();
     }
+    if (points !== null) {
+      (Progress.data.dailyScores ??= {})[day] = points;
+    }
+    Progress.save();
+  },
+  /** Le score obtenu le jour dit, ou null si le défi n'a pas été terminé. */
+  scoreOf(day = dayNumber()) {
+    return Progress.data.dailyScores?.[day] ?? null;
   },
   /**
    * La série en cours.
@@ -419,8 +438,8 @@ export class Game {
     if (played) this.creditMove(played);
     this.currentObstacle = nextStep(this.board)?.technique ?? null;
     if (this.isComplete) {
-      clearSaved();
-      if (this.dailyDay !== null) Daily.markDone(this.dailyDay);
+      clearSaved(this.dailyDay !== null ? "defi" : "libre");
+      if (this.dailyDay !== null) Daily.markDone(this.dailyDay, this.gamePoints);
     } else {
       this.persist();
     }
@@ -602,11 +621,11 @@ export class Game {
 
   persist() {
     if (this.isComplete) return;
-    writeJSON(GAME_KEY, this.saved);
+    writeJSON(this.dailyDay !== null ? DAILY_KEY : GAME_KEY, this.saved);
   }
 
-  static restore() {
-    const s = readJSON(GAME_KEY, null);
+  static restore(kind = "libre") {
+    const s = readJSON(kind === "defi" ? DAILY_KEY : GAME_KEY, null);
     if (!s || !s.puzzle || !s.solution) return null;
     try {
       const game = new Game(
@@ -638,9 +657,21 @@ export function hasSaved() {
   return readJSON(GAME_KEY, null) !== null;
 }
 
-export function clearSaved() {
+/** Un défi du jour entamé mais pas terminé, pour la date d'aujourd'hui. */
+export function hasSavedDaily(day = dayNumber()) {
+  const s = readJSON(DAILY_KEY, null);
+  if (!s) return false;
+  // Une sauvegarde d'hier n'a plus d'objet : la grille du jour a changé.
+  if (s.dailyDay !== day) {
+    clearSaved("defi");
+    return false;
+  }
+  return true;
+}
+
+export function clearSaved(kind = "libre") {
   try {
-    localStorage.removeItem(GAME_KEY);
+    localStorage.removeItem(kind === "defi" ? DAILY_KEY : GAME_KEY);
   } catch {
     /* rien à faire */
   }
