@@ -338,10 +338,17 @@ function renderGame() {
     </div>`)
   );
 
+  // Le gain est une notification ponctuelle : on la consomme en l'affichant.
+  // Sans cela, elle restait posée sur l'état et chaque nouveau rendu relançait
+  // l'animation — poser une note ou toucher une case suffisait à la rejouer,
+  // en annonçant des points qui n'avaient pas été gagnés.
+  const gain = game.lastGain;
+  game.lastGain = null;
+
   header.appendChild(
     el(`<div class="header-stats">
       <div class="score">${game.gamePoints}${
-        game.lastGain ? ` <span class="gain">+${game.lastGain}</span>` : ""
+        gain ? ` <span class="gain">+${gain}</span>` : ""
       }</div>
       <div>${formatTime(game.elapsed)}</div>
     </div>`)

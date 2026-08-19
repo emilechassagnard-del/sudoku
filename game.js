@@ -354,6 +354,8 @@ export class Game {
     this.snapshot();
 
     if (this.noteMode) {
+      // Une note ne franchit aucun raisonnement : rien à annoncer.
+      this.lastGain = null;
       this.notes[cell] ^= maskOf(digit);
       this.persist();
       return;
@@ -382,6 +384,7 @@ export class Game {
   erase() {
     const cell = this.selection;
     if (cell === null || this.puzzle.values[cell] !== 0) return;
+    this.lastGain = null;
     this.snapshot();
     this.entries[cell] = 0;
     this.notes[cell] = 0;
@@ -391,6 +394,7 @@ export class Game {
   undo() {
     const last = this.history.pop();
     if (!last) return;
+    this.lastGain = null;
     this.entries = last.entries;
     this.notes = last.notes;
     this.eliminated = last.eliminated;
