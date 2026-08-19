@@ -353,6 +353,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .notes span { display: grid; place-items: center; }
 .notes span.lit { color: var(--premise-ink); font-weight: 700; }
 .notes span.cut { color: var(--target); font-weight: 700; }
+/* L'écho du chiffre sélectionné : simple confort de lecture, donc en encre.
+   L'ambre et l'indigo restent réservés aux moments pédagogiques. */
+.notes span.echo { color: var(--ink); font-weight: 800; }
 
 /* ------------------------------------------------------------- Commandes */
 

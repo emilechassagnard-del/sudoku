@@ -272,7 +272,10 @@ function renderGrid(game, options = {}) {
         for (let d = 1; d <= 9; d++) {
           const on = hasDigit(shown, d);
           let cls = "";
+          // Les marques pédagogiques priment : elles portent un sens précis, et
+          // l'écho du chiffre sélectionné n'est qu'un confort de lecture.
           if (mark && hasDigit(mark.digits, d)) cls = mark.role === "target" ? "cut" : "lit";
+          else if (on && d === selectedValue) cls = "echo";
           notes.appendChild(el(`<span class="${cls}">${on ? d : ""}</span>`));
         }
         node.appendChild(notes);
