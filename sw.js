@@ -12,6 +12,7 @@ const FILES = [
   "app.js",
   "game.js",
   "engine.js",
+  "mesure.js",
   "puzzles.json",
   "examples.json",
   "manifest.json",

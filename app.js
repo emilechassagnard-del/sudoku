@@ -34,6 +34,8 @@ import {
   isSolvedByCandidates,
 } from "./game.js";
 
+import { installerMesure, noter } from "./mesure.js";
+
 const app = document.getElementById("app");
 
 const state = {
@@ -68,6 +70,7 @@ async function boot() {
       "voisins : il faut passer par un serveur, même local.</p>";
     return;
   }
+  installerMesure();
   render();
 }
 
@@ -186,7 +189,10 @@ function renderHome() {
   screen.appendChild(levels);
 
   const tech = el(`<button class="ghost-button">Les treize raisonnements</button>`);
-  tech.onclick = () => go("techniques");
+  tech.onclick = () => {
+    noter("fiches-ouvertes");
+    go("techniques");
+  };
   screen.appendChild(tech);
 
   return screen;
@@ -210,6 +216,7 @@ function startNew(level) {
     return;
   }
   state.game = new Game(record);
+  noter(`partie-commencee-${level}`);
   go("game");
 }
 
@@ -221,6 +228,7 @@ function startDaily() {
     return;
   }
   state.game = new Game(record, { dailyDay: day });
+  noter("defi-commence");
   go("game");
 }
 
@@ -308,6 +316,9 @@ function renderGame() {
   const back = el(`<button class="icon-button">‹</button>`);
   back.onclick = () => {
     game.persist();
+    // Le point d'abandon est l'information la plus utile : elle dit où le jeu
+    // décroche, ce qu'aucun compteur de visites ne montre.
+    noter(`partie-quittee-${DIFFICULTY_NAME[game.difficulty].toLowerCase()}`);
     go("home");
   };
   header.appendChild(back);
@@ -454,6 +465,7 @@ function renderControls(game) {
   );
   cands.onclick = () => {
     game.toggleCandidates();
+    if (game.autoCandidates) noter("candidats-actives");
     vibrate();
     render();
   };
@@ -462,6 +474,7 @@ function renderControls(game) {
   const hint = el(`<div class="action teach"><span class="glyph">◆</span>Indice</div>`);
   hint.onclick = () => {
     game.askForHint();
+    if (game.hint) noter(`indice-${game.hint.stage}`);
     render();
   };
   actions.appendChild(hint);
@@ -489,6 +502,7 @@ function renderControls(game) {
 
 function finish(game) {
   stopTimer();
+  noter(`partie-terminee-${game.difficulty}`);
   state.result = {
     points: game.gamePoints,
     time: formatTime(game.elapsed),
