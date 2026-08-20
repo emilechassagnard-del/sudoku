@@ -592,7 +592,16 @@ function renderControls(game) {
   };
   actions.appendChild(notes);
 
-  const hint = el(`<div class="action teach"><span class="glyph">◆</span>Indice</div>`);
+  // L'ampoule est dessinée plutôt qu'empruntée à une police : les emojis
+  // changent d'aspect d'un appareil à l'autre et gardent leur propre couleur,
+  // alors qu'un tracé suit l'ambre de l'enseignement dans les deux thèmes.
+  const AMPOULE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9.1 15.8a6.3 6.3 0 1 1 5.8 0" />
+      <path d="M9.3 15.9v1.9h5.4v-1.9" />
+      <path d="M10.5 20.6h3" />
+    </svg>`;
+  const hint = el(`<div class="action teach"><span class="glyph">${AMPOULE}</span>Indice</div>`);
   hint.onclick = () => {
     // Le premier palier coûte la moitié du passage : le joueur doit le savoir
     // avant d'appuyer, pas après. Les paliers suivants annoncent leur prix sur

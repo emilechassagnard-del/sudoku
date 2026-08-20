@@ -415,7 +415,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   gap: 3px;
 }
 
-.action .glyph { font-size: 16px; color: var(--ink); }
+.action .glyph { font-size: 16px; color: var(--ink); line-height: 1; }
+/* Un tracé se dimensionne sur la taille du texte et prend sa couleur. */
+.action .glyph svg { width: 1.15em; height: 1.15em; display: block; }
 .action.on { background: var(--cell-selected); }
 .action.on .glyph { color: var(--ink); }
 .action.teach .glyph, .action.teach { color: var(--premise-ink); }
