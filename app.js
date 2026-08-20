@@ -51,6 +51,8 @@ const state = {
   panel: null, // null | "settings" | "confirm-candidates" | "confirm-hint" | "confirm-new"
   pendingLevel: null,
   result: null,
+  // Numéro du dernier gain déjà montré au joueur.
+  shownGainSeq: 0,
 };
 
 let examples = [];
@@ -396,12 +398,17 @@ function renderGame() {
     </div>`)
   );
 
-  // Le gain est une notification ponctuelle : on la consomme en l'affichant.
-  // Sans cela, elle restait posée sur l'état et chaque nouveau rendu relançait
-  // l'animation — poser une note ou toucher une case suffisait à la rejouer,
-  // en annonçant des points qui n'avaient pas été gagnés.
-  const gain = game.lastGain;
-  game.lastGain = null;
+  // Le gain est une notification ponctuelle. Elle ne doit paraître qu'au coup
+  // qui l'a produite : un simple toucher de case, une note posée ou un panneau
+  // refermé provoquent un nouveau rendu, et l'annonce se rejouait alors en
+  // promettant des points déjà comptés.
+  //
+  // Chaque gain porte un numéro ; on n'affiche que celui qu'on n'a pas encore
+  // montré. Aucun chemin de rendu ne peut plus rejouer l'annonce, qu'il pense
+  // ou non à vider l'état.
+  const gain =
+    game.lastGain && game.gainSeq !== state.shownGainSeq ? game.lastGain : null;
+  if (gain) state.shownGainSeq = game.gainSeq;
 
   header.appendChild(
     el(`<div class="header-stats">

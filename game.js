@@ -274,6 +274,11 @@ export class Game {
     this.assistance = "none";
     this.assistedTechnique = null;
     this.lastGain = null;
+    // Chaque gain porte un numéro. L'interface ne peut alors afficher un gain
+    // qu'une seule fois : elle retient le dernier numéro montré et ignore tout
+    // ce qui a déjà été vu. Vider `lastGain` au bon moment devient inutile —
+    // et c'est justement ce qu'on n'arrivait pas à faire partout.
+    this.gainSeq = 0;
 
     this.board = this.puzzle.clone();
     this.refreshBoard();
@@ -513,6 +518,7 @@ export class Game {
 
     this.gameQuarters += earned;
     this.lastGain = earned > 0 ? earned : null;
+    if (this.lastGain) this.gainSeq += 1;
 
     this.quartersByTechnique[technique] = (this.quartersByTechnique[technique] ?? 0) + earned;
     if (unaided) this.solo[technique] = (this.solo[technique] ?? 0) + 1;
