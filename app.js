@@ -472,7 +472,7 @@ function renderGame() {
 
   // Grille, avec les marques de l'indice si le palier les autorise
   const hint = game.hint;
-  const showMarks = hint && (hint.stage === "located" || hint.stage === "explained");
+  const showMarks = hint && hint.stage === "explained";
   screen.appendChild(
     renderGrid(game, {
       marks: showMarks ? hint.deduction.highlights : null,
@@ -523,11 +523,11 @@ function renderHintCard(game, hint) {
   const row = el(`<div class="row"></div>`);
 
   if (hint.stage !== "explained") {
-    const apres = hint.stage === "named" ? ASSISTANCE.located : ASSISTANCE.given;
-    const reste = neutralised ? 0 : COST[technique] * apres;
+    // Un seul palier reste au-delà du nom : l'explication, qui montre les cases
+    // et ne rapporte plus rien.
+    const reste = neutralised ? 0 : COST[technique] * ASSISTANCE.given;
     const label =
-      (hint.stage === "named" ? "Me montrer où" : "M'expliquer") +
-      (reste > 0 ? ` — ${reste} pt${reste > 1 ? "s" : ""}` : " — 0 pt");
+      "M'expliquer" + (reste > 0 ? ` — ${reste} pt${reste > 1 ? "s" : ""}` : " — 0 pt");
     const next = el(`<button class="primary">${label}</button>`);
     next.onclick = () => {
       game.askForHint();
@@ -539,7 +539,10 @@ function renderHintCard(game, hint) {
     apply.onclick = () => {
       game.applyHint();
       state.hintOpen = false;
-      render();
+      // Une déduction appliquée peut poser la dernière case : la partie se
+      // termine alors ici, exactement comme depuis le pavé numérique.
+      if (game.isComplete) finish(game);
+      else render();
     };
     row.appendChild(apply);
   }
@@ -643,6 +646,8 @@ function finish(game) {
   noter(`partie-terminee-${game.difficulty}`);
   state.result = {
     points: game.gamePoints,
+    raisonnement: game.reasoningPoints,
+    rapidite: game.timeBonus,
     time: formatTime(game.elapsed),
     breakdown: game.breakdown,
     daily: game.dailyDay !== null,
@@ -665,7 +670,16 @@ function renderResult() {
   );
 
   card.appendChild(el(`<div class="total">${r.points}</div>`));
-  card.appendChild(el(`<div class="total-label">points de raisonnement</div>`));
+  card.appendChild(el(`<div class="total-label">points</div>`));
+
+  // Les deux moitiés du score, annoncées avant le détail : le joueur doit voir
+  // d'où vient son total avant d'en lire la ventilation.
+  card.appendChild(
+    el(`<div class="halves">
+      <div><span class="hv">${r.raisonnement}</span><span class="hl">raisonnement</span></div>
+      <div><span class="hv">${r.rapidite}</span><span class="hl">rapidité</span></div>
+    </div>`)
+  );
 
   const list = el(`<div class="breakdown"></div>`);
   for (const row of r.breakdown.slice(0, 5)) {
@@ -1100,7 +1114,7 @@ function renderPanel() {
           ? "Aucun raisonnement connu ne s'applique ici."
           : perdu
             ? "Ce passage ne rapporte déjà plus de points : l'indice ne vous coûtera rien."
-            : `Ce passage vaut <strong>${plein} points</strong>. Le nommer le ramènera à <strong>${apres}</strong>. Voir les cases le divisera encore, et l'explication complète le ramènera à zéro.`
+            : `Ce passage vaut <strong>${plein} points</strong>. Le nommer le ramènera à <strong>${apres}</strong> — il vous restera à le trouver. L'explication complète, elle, montre les cases et ne rapporte plus rien.`
       }</p>`)
     );
 
