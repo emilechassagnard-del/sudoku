@@ -10,7 +10,7 @@
 // injoignable. Le surcoût est négligeable — le jeu entier pèse moins de trois
 // cents kilooctets — et tout le calcul reste local de toute façon.
 
-const CACHE = "sudophile-v4";
+const CACHE = "sudophile-v5";
 
 const FILES = [
   "./",
@@ -18,6 +18,7 @@ const FILES = [
   "style.css",
   "app.js",
   "game.js",
+  "classement.js",
   "engine.js",
   "mesure.js",
   "puzzles.json",

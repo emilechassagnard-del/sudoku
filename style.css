@@ -690,3 +690,38 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .halves .hv { font-size: 20px; font-weight: 600; }
 .halves .hl { font-size: 11px; color: var(--slate); }
+
+/* Classement */
+.rank-list { display: flex; flex-direction: column; gap: 2px; margin: 12px 0; }
+.rank-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+.rank-row.mine { border-color: var(--select-ring); border-width: 2px; }
+.rank-row .rk {
+  min-width: 26px;
+  font-size: 12px;
+  color: var(--slate);
+  font-variant-numeric: tabular-nums;
+}
+.rank-row .rn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-row .rp { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.pseudo-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  margin: 6px 0 10px;
+  font: inherit;
+  font-size: 16px; /* en dessous, iOS zoome à la mise au point */
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.pseudo-input:focus { outline: 2px solid var(--select-ring); outline-offset: -1px; }

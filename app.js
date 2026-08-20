@@ -18,6 +18,8 @@ import {
   nextStep as moteurNextStep,
 } from "./engine.js";
 
+import * as Classement from "./classement.js";
+
 import {
   Game,
   Library,
@@ -121,6 +123,19 @@ async function boot() {
 }
 
 // MARK: - Utilitaires de rendu
+
+/*
+  Neutralise le HTML d'un texte venu d'ailleurs.
+
+  Les pseudonymes du classement sont écrits par d'autres joueurs. Le serveur
+  refuse déjà les caractères dangereux, mais un affichage ne doit jamais
+  dépendre de la vigilance de celui qui l'alimente.
+*/
+function echapper(texte) {
+  return String(texte ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
 
 function el(html) {
   const t = document.createElement("template");
@@ -269,6 +284,16 @@ function renderHome() {
     go("techniques");
   };
   screen.appendChild(tech);
+
+  const rang = el(`<button class="ghost-button">Le classement</button>`);
+  rang.onclick = () => {
+    noter("classement-ouvert");
+    state.periode = state.periode ?? "jour";
+    state.tableau = null;
+    go("classement");
+    chargerClassement();
+  };
+  screen.appendChild(rang);
 
   // Une ligne, en bas, hors du chemin. Qui veut savoir trouve ; qui veut jouer
   // n'est pas retenu.
@@ -647,6 +672,12 @@ function renderControls(game) {
 function finish(game) {
   stopTimer();
   noter(`partie-terminee-${game.difficulty}`);
+
+  // Le défi du jour part au classement, sans bloquer l'affichage de la fiche :
+  // ce que le joueur veut voir maintenant, c'est son score, pas un réseau.
+  if (game.dailyDay !== null && Classement.inscrit()) {
+    Classement.deposer(game.dailyDay, game.gamePoints, game.difficulty);
+  }
   state.result = {
     points: game.gamePoints,
     raisonnement: game.reasoningPoints,
@@ -709,6 +740,145 @@ function renderResult() {
 
   overlay.appendChild(card);
   return overlay;
+}
+
+
+// MARK: - Classement
+
+const PERIODE_NOM = { jour: "Aujourd'hui", semaine: "Cette semaine", mois: "Ce mois-ci" };
+
+/*
+  Le tableau est chargé à part, puis l'écran est redessiné.
+
+  L'écran s'affiche donc immédiatement, avec une ligne d'attente, plutôt que de
+  laisser le joueur devant un blanc le temps d'un aller-retour réseau.
+*/
+async function chargerClassement() {
+  const periode = state.periode ?? "jour";
+  state.tableau = { chargement: true };
+  render();
+  const reponse = await Classement.lire(periode);
+  // Le joueur a pu changer d'onglet pendant l'attente : on ne réécrit rien.
+  if ((state.periode ?? "jour") !== periode) return;
+  state.tableau = reponse;
+  render();
+}
+
+function renderClassement() {
+  const screen = el(`<div class="screen"></div>`);
+
+  const bar = el(`<div class="top-bar"></div>`);
+  const back = el(`<button class="icon-button">‹</button>`);
+  back.onclick = () => go("home");
+  bar.appendChild(back);
+  bar.appendChild(el(`<h2>Le classement</h2>`));
+  screen.appendChild(bar);
+
+  screen.appendChild(
+    el(`<p class="principle" style="color:var(--slate)">Seul le défi du jour compte :
+      tout le monde y joue la même grille. Les semaines et les mois additionnent
+      les défis.</p>`)
+  );
+
+  // Les trois périodes.
+  const onglets = el(`<div class="choices"></div>`);
+  for (const periode of ["jour", "semaine", "mois"]) {
+    const actif = (state.periode ?? "jour") === periode;
+    const pastille = el(
+      `<button class="pill ${actif ? "on" : ""}">${PERIODE_NOM[periode]}</button>`
+    );
+    pastille.onclick = () => {
+      state.periode = periode;
+      chargerClassement();
+    };
+    onglets.appendChild(pastille);
+  }
+  screen.appendChild(onglets);
+
+  const t = state.tableau;
+
+  if (!t || t.chargement) {
+    screen.appendChild(el(`<p class="lesson-text" style="text-align:center">Chargement…</p>`));
+    return screen;
+  }
+
+  if (t.erreur) {
+    screen.appendChild(
+      el(`<p class="lesson-text" style="text-align:center">${t.erreur}</p>`)
+    );
+    const reessayer = el(`<button class="ghost-button">Réessayer</button>`);
+    reessayer.onclick = () => chargerClassement();
+    screen.appendChild(reessayer);
+    return screen;
+  }
+
+  if (!t.entrees.length) {
+    screen.appendChild(
+      el(`<p class="lesson-text" style="text-align:center">Personne n'a encore
+        terminé le défi. La première place est libre.</p>`)
+    );
+  } else {
+    const liste = el(`<div class="rank-list"></div>`);
+    for (const e of t.entrees) {
+      const moi = t.moi && t.moi.rang === e.rang && t.moi.pseudo === e.pseudo;
+      liste.appendChild(
+        el(`<div class="rank-row ${moi ? "mine" : ""}">
+          <span class="rk">${e.rang}</span>
+          <span class="rn">${echapper(e.pseudo)}</span>
+          <span class="rp">${e.points.toLocaleString("fr-FR")}</span>
+        </div>`)
+      );
+    }
+    screen.appendChild(liste);
+  }
+
+  // Sa propre place, répétée en bas si elle ne figure pas dans le tableau : un
+  // classement où l'on ne se trouve pas ne dit rien.
+  const dedans = t.moi && t.entrees.some((e) => e.rang === t.moi.rang);
+  if (t.moi && !dedans) {
+    screen.appendChild(
+      el(`<div class="rank-row mine" style="margin-top:10px">
+        <span class="rk">${t.moi.rang}</span>
+        <span class="rn">${echapper(t.moi.pseudo)}</span>
+        <span class="rp">${t.moi.points.toLocaleString("fr-FR")}</span>
+      </div>`)
+    );
+  }
+
+  if (t.total > 0) {
+    screen.appendChild(
+      el(`<p class="footnote" style="text-align:center">${t.total} joueur${
+        t.total > 1 ? "s" : ""
+      } classé${t.total > 1 ? "s" : ""}</p>`)
+    );
+  }
+
+  if (!Classement.inscrit()) {
+    const rejoindre = el(`<button class="wide-button">Rejoindre le classement</button>`);
+    rejoindre.onclick = () => {
+      state.panel = "pseudo";
+      state.pseudoErreur = null;
+      render();
+    };
+    screen.appendChild(rejoindre);
+    screen.appendChild(
+      el(`<p class="footnote" style="text-align:center">Un pseudonyme suffit.
+        Ni compte, ni mot de passe, ni adresse.</p>`)
+    );
+  } else {
+    screen.appendChild(
+      el(`<p class="footnote" style="text-align:center">Vous jouez sous le nom
+        de ${echapper(Classement.pseudo())}.</p>`)
+    );
+    const partir = el(`<button class="ghost-button">Quitter le classement</button>`);
+    partir.onclick = () => {
+      state.panel = "quitter-classement";
+      render();
+    };
+    screen.appendChild(partir);
+  }
+
+  return screen;
 }
 
 // MARK: - Les treize raisonnements
@@ -1039,6 +1209,14 @@ function renderPanel() {
         <p class="lesson-text">Vos parties, vos points et vos réglages ne
         quittent jamais votre appareil : ils sont enregistrés dans votre
         navigateur, et personne d'autre que vous n'y a accès.</p>
+        <p class="lesson-text"><strong>Une seule exception, et vous la
+        choisissez :</strong> si vous rejoignez le classement, le pseudonyme que
+        vous avez choisi et vos scores du défi quotidien sont enregistrés sur un
+        serveur, afin de pouvoir être comparés à ceux des autres joueurs. Rien
+        d'autre n'y est envoyé — ni votre adresse, ni vos parties libres. Un
+        identifiant tiré au hasard par votre navigateur sert à vous reconnaître
+        d'un jour sur l'autre ; il ne dit rien de vous. Le bouton « Quitter le
+        classement » efface l'ensemble, sans délai.</p>
         <p class="lesson-text">La mesure passe par GoatCounter, un service
         indépendant sans publicité. Si vous la bloquez, le jeu fonctionne
         exactement pareil.</p>
@@ -1094,6 +1272,82 @@ function renderPanel() {
     non.onclick = () => {
       state.pendingLevel = null;
       fermer();
+    };
+    card.appendChild(non);
+  }
+
+
+  if (state.panel === "pseudo") {
+    card.appendChild(el(`<h2>Rejoindre le classement</h2>`));
+    card.appendChild(
+      el(`<p class="lesson-text">Choisissez un nom. Il sera visible des autres
+        joueurs, et lui seul : votre score et vos parties restent liés à ce
+        navigateur, sans compte ni adresse.</p>`)
+    );
+
+    const champ = el(
+      `<input class="pseudo-input" type="text" maxlength="16" placeholder="Votre nom" />`
+    );
+    card.appendChild(champ);
+
+    if (state.pseudoErreur) {
+      card.appendChild(el(`<p class="lesson-text" style="color:var(--mistake)">${
+        echapper(state.pseudoErreur)
+      }</p>`));
+    }
+
+    const valider = el(`<button class="wide-button">Valider</button>`);
+    valider.onclick = async () => {
+      const souhait = champ.value.trim();
+      if (souhait.length < 2) {
+        state.pseudoErreur = "Il faut au moins deux caractères.";
+        render();
+        return;
+      }
+      valider.disabled = true;
+      valider.textContent = "Un instant…";
+      const reponse = await Classement.reserver(souhait);
+      if (reponse.erreur) {
+        state.pseudoErreur = reponse.erreur;
+        render();
+        return;
+      }
+      noter("classement-rejoint");
+      state.panel = null;
+      state.pseudoErreur = null;
+      chargerClassement();
+    };
+    card.appendChild(valider);
+
+    const non = el(`<button class="ghost-button">Plus tard</button>`);
+    non.onclick = () => {
+      state.panel = null;
+      state.pseudoErreur = null;
+      render();
+    };
+    card.appendChild(non);
+  }
+
+  if (state.panel === "quitter-classement") {
+    card.appendChild(el(`<h2>Quitter le classement</h2>`));
+    card.appendChild(
+      el(`<p class="lesson-text">Votre nom et tous vos scores seront effacés du
+        serveur, sans délai ni recours. Vos parties et vos points, eux, restent
+        dans ce navigateur : le jeu ne change pas.</p>`)
+    );
+    const oui = el(`<button class="wide-button">Effacer mes scores</button>`);
+    oui.onclick = async () => {
+      oui.disabled = true;
+      oui.textContent = "Un instant…";
+      await Classement.retirer();
+      state.panel = null;
+      chargerClassement();
+    };
+    card.appendChild(oui);
+    const non = el(`<button class="ghost-button">Rester</button>`);
+    non.onclick = () => {
+      state.panel = null;
+      render();
     };
     card.appendChild(non);
   }
@@ -1184,6 +1438,9 @@ function render() {
   switch (state.screen) {
     case "game":
       app.appendChild(renderGame());
+      break;
+    case "classement":
+      app.appendChild(renderClassement());
       break;
     case "techniques":
       app.appendChild(renderTechniques());
