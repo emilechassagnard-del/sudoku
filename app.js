@@ -487,7 +487,7 @@ function renderHintCard(game, hint) {
     const reste = neutralised ? 0 : COST[technique] * apres;
     const label =
       (hint.stage === "named" ? "Me montrer où" : "M'expliquer") +
-      (reste > 0 ? ` — ${reste} pts` : " — 0 pt");
+      (reste > 0 ? ` — ${reste} pt${reste > 1 ? "s" : ""}` : " — 0 pt");
     const next = el(`<button class="primary">${label}</button>`);
     next.onclick = () => {
       game.askForHint();
