@@ -676,12 +676,29 @@ function finish(game) {
   stopTimer();
   noter(`partie-terminee-${game.difficulty}`);
 
-  // Le défi du jour part au classement, sans bloquer l'affichage de la fiche :
-  // ce que le joueur veut voir maintenant, c'est son score, pas un réseau.
-  if (game.dailyDay !== null && Classement.inscrit()) {
-    Classement.deposer(game.dailyDay, game.gamePoints, game.difficulty);
+  /*
+    Le sort du score au classement, suivi jusqu'au bout.
+
+    Le dépôt ne bloque pas l'affichage — ce que le joueur veut voir maintenant,
+    c'est son score, pas un réseau. Mais il doit finir par savoir ce qu'il est
+    devenu : un envoi silencieux qui échoue, ou un classement qu'on ne lui a
+    jamais proposé de rejoindre, se ressentent tous deux comme une panne.
+  */
+  const classement =
+    game.dailyDay === null ? null : Classement.inscrit() ? "envoi" : "absent";
+
+  if (classement === "envoi") {
+    Classement.deposer(game.dailyDay, game.gamePoints, game.difficulty).then((reponse) => {
+      if (!state.result) return;
+      state.result.classement = reponse?.erreur ? "erreur" : "depose";
+      state.result.classementErreur = reponse?.erreur ?? null;
+      render();
+    });
   }
+
   state.result = {
+    classement,
+    classementErreur: null,
     points: game.gamePoints,
     raisonnement: game.reasoningPoints,
     coef: game.timeFactor,
@@ -732,6 +749,36 @@ function renderResult() {
     );
   }
   card.appendChild(list);
+
+  // Le sort du score au classement, annoncé sur la fiche elle-même.
+  if (r.classement === "absent") {
+    card.appendChild(
+      el(`<p class="lesson-text" style="color:var(--slate)">Ce score pourrait figurer
+        au classement du jour. Il suffit d'un pseudonyme.</p>`)
+    );
+    const joindre = el(`<button class="ghost-button">Rejoindre le classement</button>`);
+    joindre.onclick = () => {
+      state.panel = "pseudo";
+      render();
+    };
+    card.appendChild(joindre);
+  } else if (r.classement === "envoi") {
+    card.appendChild(el(`<p class="lesson-text" style="color:var(--slate)">Envoi au classement…</p>`));
+  } else if (r.classement === "depose") {
+    const voir = el(`<button class="ghost-button">Voir le classement</button>`);
+    voir.onclick = () => {
+      state.result = null;
+      state.game = null;
+      go("classement");
+    };
+    card.appendChild(voir);
+  } else if (r.classement === "erreur") {
+    card.appendChild(
+      el(`<p class="lesson-text" style="color:var(--slate)">${echapper(
+        r.classementErreur ?? "Le classement est injoignable."
+      )} Votre score reste enregistré ici.</p>`)
+    );
+  }
 
   const again = el(`<button class="wide-button">Retour à l'accueil</button>`);
   again.onclick = () => {
