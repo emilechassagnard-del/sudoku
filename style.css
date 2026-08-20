@@ -611,3 +611,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .pill.on { background: var(--cell-selected); }
 
 .icon-button.on { background: var(--cell-selected); }
+
+/* Mention de mesure : presente, jamais encombrante. */
+.footnote {
+  display: block;
+  width: 100%;
+  margin: 22px 0 6px;
+  padding: 6px 0;
+  font-family: var(--lesson);
+  font-size: 11px;
+  color: var(--slate);
+  opacity: 0.75;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.footnote:hover { opacity: 1; }

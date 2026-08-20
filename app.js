@@ -228,6 +228,17 @@ function renderHome() {
   };
   screen.appendChild(tech);
 
+  // Une ligne, en bas, hors du chemin. Qui veut savoir trouve ; qui veut jouer
+  // n'est pas retenu.
+  const legal = el(
+    `<button class="footnote">Fréquentation mesurée anonymement — en savoir plus</button>`
+  );
+  legal.onclick = () => {
+    state.panel = "mesure";
+    render();
+  };
+  screen.appendChild(legal);
+
   return screen;
 }
 
@@ -902,6 +913,35 @@ function renderPanel() {
       render();
     };
     card.appendChild(non);
+  }
+
+  if (state.panel === "mesure") {
+    card.appendChild(el(`<h2>Ce qui est mesuré</h2>`));
+    card.appendChild(
+      el(`<div>
+        <p class="lesson-text">Ce site compte ses visites et quelques gestes de
+        jeu : la partie lancée et son niveau, la partie terminée ou quittée, le
+        recours à un indice, l'ouverture des fiches.</p>
+        <p class="lesson-text">Ces relevés servent à une seule chose : savoir où
+        le jeu décroche. Si une grille Difficile est commencée cent fois et
+        terminée trois fois, quelque chose ne va pas — et sans ce chiffre, je ne
+        peux pas le voir.</p>
+        <p class="lesson-text"><strong>Aucune donnée personnelle n'est
+        recueillie.</strong> Pas de nom, pas d'adresse électronique, pas de
+        compte, pas de mouchard publicitaire, aucun suivi d'un site à l'autre.
+        Les relevés sont anonymes et ne permettent pas de vous reconnaître d'une
+        visite à la suivante.</p>
+        <p class="lesson-text">Vos parties, vos points et vos réglages ne
+        quittent jamais votre appareil : ils sont enregistrés dans votre
+        navigateur, et personne d'autre que vous n'y a accès.</p>
+        <p class="lesson-text">La mesure passe par GoatCounter, un service
+        indépendant sans publicité. Si vous la bloquez, le jeu fonctionne
+        exactement pareil.</p>
+      </div>`)
+    );
+    const retour = el(`<button class="wide-button">Fermer</button>`);
+    retour.onclick = fermer;
+    card.appendChild(retour);
   }
 
   if (state.panel === "confirm-new") {
