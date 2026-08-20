@@ -48,7 +48,8 @@ const state = {
   showPattern: false,
   showLesson: false,
   hintOpen: false,
-  panel: null, // null | "settings" | "confirm-candidates" | "confirm-hint"
+  panel: null, // null | "settings" | "confirm-candidates" | "confirm-hint" | "confirm-new"
+  pendingLevel: null,
   result: null,
 };
 
@@ -205,7 +206,17 @@ function renderHome() {
       <span class="meta">${describeLevel(level)}</span>
     </button>`);
     button.disabled = count === 0;
-    button.onclick = () => startNew(level);
+    button.onclick = () => {
+      // Une partie libre en cours serait écrasée sans retour possible : on
+      // prévient avant, jamais après.
+      if (hasSaved()) {
+        state.pendingLevel = level;
+        state.panel = "confirm-new";
+        render();
+        return;
+      }
+      startNew(level);
+    };
     levels.appendChild(button);
   }
   screen.appendChild(levels);
@@ -893,6 +904,55 @@ function renderPanel() {
     card.appendChild(non);
   }
 
+  if (state.panel === "confirm-new") {
+    const niveau = state.pendingLevel;
+    card.appendChild(el(`<h2>Abandonner la partie en cours ?</h2>`));
+    card.appendChild(
+      el(`<div>
+        <p class="lesson-text">Une partie est déjà commencée. En lancer une
+        nouvelle l'effacera définitivement : la grille, les notes et le temps
+        écoulé seront perdus.</p>
+        <p class="lesson-text">Les points déjà gagnés, eux, restent acquis à
+        votre compte — ils comptent des raisonnements franchis, et ceux-là ont
+        bien eu lieu.</p>
+      </div>`)
+    );
+
+    const oui = el(`<button class="wide-button">Lancer une ${DIFFICULTY_NAME[niveau]}</button>`);
+    oui.onclick = () => {
+      clearSaved();
+      state.panel = null;
+      state.pendingLevel = null;
+      startNew(niveau);
+    };
+    card.appendChild(oui);
+
+    const reprendre = el(
+      `<button class="ghost-button" style="margin-top:8px">Reprendre la partie en cours</button>`
+    );
+    reprendre.onclick = () => {
+      const partie = Game.restore();
+      state.panel = null;
+      state.pendingLevel = null;
+      if (!partie) {
+        toast("La partie sauvegardée est illisible.");
+        clearSaved();
+        render();
+        return;
+      }
+      state.game = partie;
+      go("game");
+    };
+    card.appendChild(reprendre);
+
+    const non = el(`<button class="ghost-button" style="margin-top:8px">Annuler</button>`);
+    non.onclick = () => {
+      state.pendingLevel = null;
+      fermer();
+    };
+    card.appendChild(non);
+  }
+
   if (state.panel === "confirm-hint") {
     // Ce que l'indice va réellement coûter, calculé sur le motif que le moteur
     // s'apprête à nommer — pas sur une estimation.
@@ -992,7 +1052,7 @@ function render() {
       app.appendChild(renderHome());
   }
 
-  if (state.panel && state.game) app.appendChild(renderPanel());
+  if (state.panel) app.appendChild(renderPanel());
   if (state.result) app.appendChild(renderResult());
 }
 

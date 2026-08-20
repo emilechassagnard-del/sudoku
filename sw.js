@@ -1,9 +1,16 @@
-// Met le jeu en cache pour qu'il fonctionne sans réseau.
+// Permet de jouer sans réseau, sans jamais figer le jeu dans une vieille
+// version.
 //
-// Une fois la page visitée une fois, tout est local : les grilles sont déjà
-// dans le stock, rien n'a besoin d'être demandé à un serveur pour jouer.
+// La première écriture demandait le cache en premier et ne consultait le réseau
+// que s'il n'y avait rien. C'était une impasse : une fois les fichiers en
+// cache, aucune mise à jour ne pouvait plus arriver, quoi qu'on publie.
+//
+// On interroge donc le réseau d'abord et on garde une copie fraîche à chaque
+// passage. Le cache ne sert plus que de filet : hors ligne, ou serveur
+// injoignable. Le surcoût est négligeable — le jeu entier pèse moins de trois
+// cents kilooctets — et tout le calcul reste local de toute façon.
 
-const CACHE = "sudoku-v1";
+const CACHE = "sudoku-v2";
 
 const FILES = [
   "./",
@@ -21,7 +28,10 @@ const FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(FILES))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -34,21 +44,25 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Cache d'abord : le jeu doit démarrer instantanément, même en tunnel.
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  // Les requêtes vers d'autres domaines — la mesure d'usage, notamment — ne
+  // passent pas par ici : elles ne doivent ni être mises en cache, ni empêcher
+  // quoi que ce soit si elles échouent.
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then((hit) => {
-      if (hit) return hit;
-      return fetch(event.request)
-        .then((response) => {
-          if (response.ok && response.type === "basic") {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match("index.html"));
-    })
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((hit) => hit || caches.match("index.html")))
   );
 });

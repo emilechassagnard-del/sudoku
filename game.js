@@ -435,6 +435,10 @@ export class Game {
   finishMove(played = null) {
     this.refreshBoard();
     this.hint = null;
+    // Retirer un chiffre, se tromper, effacer : aucun raisonnement franchi,
+    // donc rien à annoncer. Sans cette remise à zéro, l'ancienne annonce
+    // restait posée sur l'état et se rejouait au rendu suivant.
+    this.lastGain = null;
     if (played) this.creditMove(played);
     this.currentObstacle = nextStep(this.board)?.technique ?? null;
     if (this.isComplete) {
