@@ -321,6 +321,18 @@ export class Game {
     this.history = [];
     this.elapsed = 0;
     this.timeFactor = 0;
+    /*
+      Les cases sur lesquelles le joueur s'est trompé au moins une fois.
+
+      Elles ne rapporteront plus rien, quel que soit le chiffre qu'il y posera
+      ensuite. La règle est sévère mais lisible : on ne peut pas gagner les
+      points d'un raisonnement qu'on a manifestement raté.
+
+      Cette liste ne figure volontairement pas dans les instantanés d'annulation
+      — sans quoi il suffirait d'appuyer sur « Annuler » pour effacer sa faute
+      et retenter la case jusqu'à tomber juste.
+    */
+    this.faulted = [];
     this.mistakes = 0;
     this.hintsUsed = 0;
 
@@ -454,12 +466,19 @@ export class Game {
       if (digit === this.solutionAt(cell)) {
         // Un chiffre juste rend caduques les notes des voisins.
         for (const peer of Geometry.peers[cell]) this.notes[peer] &= ~maskOf(digit);
-        played = { cell, digit, before };
+        // Une case déjà fautée se remplit sans rien rapporter.
+        played = this.faulted.includes(cell) ? null : { cell, digit, before };
       } else {
         this.mistakes++;
+        if (!this.faulted.includes(cell)) this.faulted.push(cell);
       }
     }
     this.finishMove(played);
+  }
+
+  /** Cette case a-t-elle déjà reçu un chiffre faux ? */
+  isFaulted(cell) {
+    return this.faulted.includes(cell);
   }
 
   erase() {
@@ -694,6 +713,7 @@ export class Game {
       entries: this.entries,
       notes: this.notes,
       eliminated: this.eliminated,
+      faulted: this.faulted,
       autoCandidates: this.autoCandidates,
       elapsed: this.elapsed,
       timeFactor: this.timeFactor,
@@ -721,6 +741,7 @@ export class Game {
         { dailyDay: s.dailyDay ?? null }
       );
       game.entries = s.entries ?? game.entries;
+      game.faulted = s.faulted ?? [];
       game.notes = s.notes ?? game.notes;
       game.eliminated = s.eliminated ?? game.eliminated;
       game.autoCandidates = !!s.autoCandidates;

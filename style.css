@@ -348,6 +348,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .cell.given { color: var(--given); }
 .cell.wrong { color: var(--mistake); }
+
+/* Une case sur laquelle le joueur s'est trompé : le chiffre est désormais bon,
+   mais elle ne rapporte plus de points. Un simple point discret sous le
+   chiffre — assez visible pour être remarqué, assez sobre pour ne pas crier. */
+.cell.faulted::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--mistake);
+  opacity: 0.55;
+}
 .cell.related { background: var(--cell-related); }
 .cell.twin { background: var(--cell-twin); }
 .cell.selected {

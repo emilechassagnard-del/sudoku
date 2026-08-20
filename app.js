@@ -385,6 +385,9 @@ function renderGrid(game, options = {}) {
 
     if (given) classes.push("given");
     if (game && game.isWrong(cell)) classes.push("wrong");
+    // Une case déjà fautée ne rapportera plus rien : le joueur doit le voir,
+    // sans quoi il croira à un défaut de comptage.
+    if (game && game.isFaulted(cell) && !game.isWrong(cell)) classes.push("faulted");
 
     if (!readonly && selection !== null) {
       if (cell === selection) classes.push("selected");
