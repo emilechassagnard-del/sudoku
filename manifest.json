@@ -1,7 +1,7 @@
 {
-  "name": "Sudoku — un indice nomme un raisonnement",
-  "short_name": "Sudoku",
-  "description": "Un Sudoku qui explique. L'indice ne donne pas un chiffre : il nomme un raisonnement.",
+  "name": "Sudophile — le Sudoku qui vous explique",
+  "short_name": "Sudophile",
+  "description": "Sudophile, le Sudoku qui vous explique. L'indice ne donne pas un chiffre : il nomme un raisonnement.",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",

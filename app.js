@@ -132,7 +132,7 @@ function renderHome() {
 
   screen.appendChild(
     el(`<div class="brand">
-      <h1>Sudoku</h1>
+      <h1>Sudophile</h1>
       <p>Un indice ne donne pas un chiffre.<br />Il nomme un raisonnement.</p>
     </div>`)
   );
