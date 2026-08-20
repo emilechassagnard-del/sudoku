@@ -40,6 +40,9 @@
      « encre sur papier » devenait un pavé blanc éblouissant en pleine nuit. */
   --strong: #1b2430;
   --on-strong: #f7f8fa;
+  /* Contour de la case sélectionnée. Un trait se voit quel que soit le fond,
+     là où une simple nuance se noie dans les tons foncés. */
+  --select-ring: #1b2430;
   --accent-strong: #6b4e00;
   --on-accent-strong: #f7f8fa;
 
@@ -48,40 +51,45 @@
   --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #12161b;
-    --cell-plain: #1a2029;
-    --cell-related: #222a34;
-    --cell-selected: #2e3a47;
-    --cell-twin: #28323d;
+/*
+  Le thème sombre s'applique par attribut, pas par media query. Un court script
+  dans la page résout la préférence — automatique, clair ou sombre — et pose
+  `data-theme` avant le premier affichage. Les couleurs ne sont ainsi écrites
+  qu'à un seul endroit, et le joueur garde la main.
+*/
+[data-theme="dark"] {
+  --paper: #12161b;
+  --cell-plain: #1a2029;
+  --cell-related: #222a34;
+  --cell-selected: #3d4d5e;
+  --cell-twin: #28323d;
 
-    --hairline: #323c48;
-    --block-line: #8a99a8;
+  --hairline: #323c48;
+  --block-line: #8a99a8;
 
-    --given: #e8edf2;
-    --entry: #4dd4c4;
-    --mistake: #ff8a80;
-    --note: #8a99a8;
+  --given: #e8edf2;
+  --entry: #4dd4c4;
+  --mistake: #ff8a80;
+  --note: #8a99a8;
 
-    --premise: #8a6d1f;
-    --premise-ink: #f7d77a;
-    --pivot: #b4711c;
-    --target: #8b7ef0;
+  --premise: #8a6d1f;
+  --premise-ink: #f7d77a;
+  --pivot: #b4711c;
+  --target: #8b7ef0;
 
-    --ink: #e8edf2;
-    --slate: #93a2b1;
+  --ink: #e8edf2;
+  --slate: #93a2b1;
 
-    --surface: #1a2029;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+  --surface: #1a2029;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
 
-    /* De nuit, un fond appuyé reste plus clair que la page sans jamais
-       l'éclabousser : une ardoise soutenue, pas du blanc. */
-    --strong: #33404e;
-    --on-strong: #eef2f6;
-    --accent-strong: #b08a24;
-    --on-accent-strong: #12161b;
-  }
+  /* De nuit, un fond appuyé reste plus clair que la page sans jamais
+  l'éclabousser : une ardoise soutenue, pas du blanc. */
+  --strong: #33404e;
+  --on-strong: #eef2f6;
+  --select-ring: #c3d0dd;
+  --accent-strong: #b08a24;
+  --on-accent-strong: #12161b;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -342,7 +350,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cell.wrong { color: var(--mistake); }
 .cell.related { background: var(--cell-related); }
 .cell.twin { background: var(--cell-twin); }
-.cell.selected { background: var(--cell-selected); }
+.cell.selected {
+  background: var(--cell-selected);
+  /* `outline` plutôt que `box-shadow` : les traits de bloc occupent déjà
+     l'ombre intérieure des cases de bordure. */
+  outline: 2px solid var(--select-ring);
+  outline-offset: -2px;
+  z-index: 2;
+}
 
 /* Bordures de bloc dessinées en ombre interne : pas de décalage de grille. */
 .cell.edge-r { box-shadow: inset -2px 0 0 var(--block-line); }
@@ -634,6 +649,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .pill.on { background: var(--cell-selected); }
 
 .icon-button.on { background: var(--cell-selected); }
+
+/* Trois choix côte à côte, dans une ligne de réglage. */
+.choices { display: flex; gap: 6px; flex-shrink: 0; }
+.choices .pill { padding: 7px 11px; font-size: 12px; }
 
 /* Mention de mesure : presente, jamais encombrante. */
 .footnote {

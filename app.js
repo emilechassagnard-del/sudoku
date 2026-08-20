@@ -58,6 +58,46 @@ const state = {
 let examples = [];
 let timer = null;
 
+// MARK: - Thème
+//
+// La préférence vaut "auto", "light" ou "dark". Le script d'amorce, dans la
+// page, l'a déjà résolue une première fois ; ces fonctions la relisent et la
+// modifient quand le joueur en décide autrement.
+
+const THEME_KEY = "sudoku.theme";
+
+function themePref() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === "light" || v === "dark" ? v : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+function applyTheme(pref) {
+  const sombre =
+    pref === "dark" ||
+    (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", sombre ? "dark" : "light");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", sombre ? "#12161b" : "#f7f8fa");
+}
+
+function setThemePref(pref) {
+  try {
+    if (pref === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, pref);
+  } catch {}
+  applyTheme(pref);
+}
+
+// Si le joueur laisse le choix à l'appareil, on suit ses changements en direct
+// — bascule programmée au coucher du soleil, par exemple.
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (themePref() === "auto") applyTheme("auto");
+});
+
 // MARK: - Démarrage
 
 async function boot() {
@@ -883,6 +923,37 @@ function renderPanel() {
     };
     ligne.appendChild(bouton);
     card.appendChild(ligne);
+
+    // Apparence. Trois choix, dont un qui s'en remet à l'appareil.
+    const courant = themePref();
+    const apparence = el(`<div class="setting"></div>`);
+    apparence.appendChild(
+      el(`<div style="flex:1">
+        <div class="setting-name">Apparence</div>
+        <div class="setting-note">${
+          courant === "auto"
+            ? "Suit le réglage de votre appareil."
+            : courant === "dark"
+              ? "Sombre, quel que soit l'appareil."
+              : "Claire, quel que soit l'appareil."
+        }</div>
+      </div>`)
+    );
+    const choix = el(`<div class="choices"></div>`);
+    for (const [valeur, nom] of [
+      ["auto", "Auto"],
+      ["light", "Clair"],
+      ["dark", "Sombre"],
+    ]) {
+      const b = el(`<button class="pill ${valeur === courant ? "on" : ""}">${nom}</button>`);
+      b.onclick = () => {
+        setThemePref(valeur);
+        render();
+      };
+      choix.appendChild(b);
+    }
+    apparence.appendChild(choix);
+    card.appendChild(apparence);
 
     const retour = el(`<button class="wide-button">Fermer</button>`);
     retour.onclick = fermer;

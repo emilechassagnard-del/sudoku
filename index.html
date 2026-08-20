@@ -3,8 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-    <meta name="theme-color" content="#f7f8fa" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#12161b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f7f8fa" />
     <meta name="description" content="Sudophile, le Sudoku qui vous explique. L'indice ne donne pas un chiffre : il nomme un raisonnement." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Sudophile" />
@@ -13,6 +12,31 @@
     <link rel="apple-touch-icon" href="icone.png" />
     <link rel="stylesheet" href="style.css" />
     <title>Sudophile — le Sudoku qui vous explique</title>
+    <script>
+      /*
+        Le thème est posé avant le premier affichage : sans cela, la page
+        paraîtrait un instant en clair avant de basculer, et ce clignotement
+        est particulièrement désagréable de nuit.
+
+        Trois préférences possibles : "auto" suit le réglage de l'appareil,
+        "light" et "sombre" l'ignorent. Le script les résout toujours en une
+        valeur concrète, si bien que la feuille de style n'a qu'un seul jeu de
+        couleurs sombres à décrire.
+      */
+      (function () {
+        var pref = "auto";
+        try {
+          pref = localStorage.getItem("sudoku.theme") || "auto";
+        } catch (e) {}
+        var sombre =
+          pref === "dark" ||
+          (pref !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", sombre ? "dark" : "light");
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", sombre ? "#12161b" : "#f7f8fa");
+      })();
+    </script>
   </head>
   <body>
     <div id="app">
