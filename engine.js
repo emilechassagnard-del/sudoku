@@ -999,13 +999,37 @@ function boardFromValues(values) {
   return Board.parse(values.map((v) => (v === 0 ? "." : String(v))).join(""));
 }
 
-/** Retire des indices tant que la solution reste unique. */
-function carve(solution, rand, symmetric) {
+/*
+  Le nombre d'indices à laisser en place selon le niveau visé.
+
+  Sans ce plancher, le creusement allait toujours au bout — il retirait des
+  chiffres tant que la solution restait unique — et produisait des grilles à
+  vingt-cinq indices quel que soit le niveau. Une grille facile n'était alors
+  facile que par les techniques qu'elle réclamait : le joueur avait tout de
+  même cinquante-cinq cases à remplir une par une, ce qui est long, fastidieux,
+  et se ressent comme de la difficulté.
+
+  Une grille se juge autant à ce qu'elle donne qu'à ce qu'elle demande.
+*/
+export const PLANCHER_INDICES = {
+  facile: 40,
+  moyen: 34,
+  difficile: 30,
+  expert: 27,
+  diabolique: 17, // le minimum théorique : on creuse jusqu'au bout
+};
+
+/** Retire des indices tant que la solution reste unique et que le plancher le permet. */
+function carve(solution, rand, symmetric, plancher = 17) {
   const values = [...solution.values];
+  let restants = 81;
   for (const group of shuffled(removalGroups(symmetric), rand)) {
+    if (restants - group.length < plancher) continue;
     const kept = group.map((c) => values[c]);
     for (const c of group) values[c] = 0;
-    if (!BruteForce.hasUniqueSolution(boardFromValues(values))) {
+    if (BruteForce.hasUniqueSolution(boardFromValues(values))) {
+      restants -= group.length;
+    } else {
       group.forEach((c, i) => (values[c] = kept[i]));
     }
   }
@@ -1013,9 +1037,9 @@ function carve(solution, rand, symmetric) {
 }
 
 /** Une grille notée, ou null si elle dépasse les techniques implémentées. */
-export function generateOne(rand, symmetric = true) {
+export function generateOne(rand, symmetric = true, plancher = 17) {
   const solution = fill(new Board(), rand);
-  const puzzle = carve(solution, rand, symmetric);
+  const puzzle = carve(solution, rand, symmetric, plancher);
   const rep = solve(puzzle);
   if (!rep.difficulty) return null;
   return { puzzle, solution, report: rep, difficulty: rep.difficulty };
@@ -1025,8 +1049,9 @@ export function generateOne(rand, symmetric = true) {
 export function generate(target, rand, maxAttempts = 500) {
   // Les niveaux élevés se rencontrent surtout sur les grilles très dépouillées.
   const symmetric = DIFFICULTIES.indexOf(target) < DIFFICULTIES.indexOf("expert");
+  const plancher = PLANCHER_INDICES[target] ?? 17;
   for (let i = 0; i < maxAttempts; i++) {
-    const candidate = generateOne(rand, symmetric);
+    const candidate = generateOne(rand, symmetric, plancher);
     if (candidate && candidate.difficulty === target) return candidate;
   }
   return null;

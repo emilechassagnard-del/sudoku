@@ -45,12 +45,12 @@ import {
 export const ASSISTANCE = { none: 4, named: 2, given: 0 };
 export const ASSISTANCE_LABEL = { none: "seul", named: "nommé", given: "donné" };
 
-// MARK: - Prime de rapidité
+// MARK: - Coefficient de rapidité
 
 /*
   Le temps de référence de chaque niveau, en secondes : la durée qu'on juge
   bonne sans être exceptionnelle. C'est le pivot du calcul, et le seul réglage
-  à toucher si la prime paraît trop généreuse ou trop sévère.
+  à toucher si la rapidité pèse trop, ou trop peu.
 */
 export const TEMPS_REFERENCE = {
   facile: 300,
@@ -60,32 +60,33 @@ export const TEMPS_REFERENCE = {
   diabolique: 1500,
 };
 
-/*
-  Ce que vaut la rapidité au temps de référence. Le score de raisonnement d'une
-  partie tourne autour de quatre cents points : en accordant autant ici, les
-  deux moitiés pèsent le même poids, ce qui est exactement l'intention.
-*/
-const PRIME_PLEINE = 800;
+const COEF_MIN = 0.5;
+const COEF_MAX = 2;
 
 /*
-  La prime décroît en hyperbole plutôt qu'en ligne droite.
+  La rapidité multiplie le score au lieu de s'y ajouter.
 
-  Une décroissance linéaire impose deux bornes arbitraires — un temps au-dessus
-  duquel la prime est nulle, un autre en dessous duquel elle est maximale — et
-  les joueurs s'entassent contre ces murs. L'hyperbole n'a pas de mur : elle
-  vaut la moitié du barème au temps de référence, et s'approche de zéro sans
-  jamais l'atteindre. Le joueur lent garde toujours quelque chose, et le joueur
-  très rapide ne gagne plus grand-chose à l'être davantage.
+  C'est ce qui rend le barème incorruptible sans garde-fou : une partie
+  entièrement résolue à coups d'indices vaut zéro point de raisonnement, et
+  zéro multiplié par le meilleur des coefficients fait toujours zéro. Il n'y a
+  donc aucun intérêt à expédier une grille qu'on n'a pas comprise.
 
-    moitié du temps de référence  →  533 points
-    temps de référence            →  400 points
-    le double                     →  267 points
-    le quadruple                  →  160 points
+  La courbe vaut exactement 1 au temps de référence — ni bonus ni malus pour
+  qui joue à l'allure attendue — puis monte vers 2 pour les plus rapides et
+  descend vers 0,5 pour les plus lents, sans jamais atteindre ces bornes
+  brutalement.
+
+    un tiers du temps de référence  →  ×1,50
+    la moitié                       →  ×1,33
+    le temps de référence           →  ×1,00
+    le double                       →  ×0,67
+    le triple et au-delà            →  ×0,50
 */
-export function primeDeTemps(difficulty, seconds) {
+export function coefficientDeTemps(difficulty, seconds) {
   const reference = TEMPS_REFERENCE[difficulty] ?? TEMPS_REFERENCE.moyen;
   const temps = Math.max(0, Math.round(seconds) || 0);
-  return Math.round((PRIME_PLEINE * reference) / (reference + temps));
+  const brut = (2 * reference) / (reference + temps);
+  return Math.min(COEF_MAX, Math.max(COEF_MIN, brut));
 }
 
 /** Les deux techniques que l'affichage des candidats résout entièrement. */
@@ -97,12 +98,12 @@ export function isSolvedByCandidates(technique) {
 
 export const GRADES = [
   { name: "Débutant", threshold: 0, motto: "Toute grille commence par une case." },
-  { name: "Apprenti", threshold: 800, motto: "Voir une case libre, c'est déjà raisonner." },
-  { name: "Praticien", threshold: 3200, motto: "Les motifs simples n'ont plus de secret." },
-  { name: "Analyste", threshold: 9600, motto: "Un candidat verrouillé ne passe plus inaperçu." },
-  { name: "Tacticien", threshold: 24000, motto: "Les sous-ensembles se lisent d'un coup d'œil." },
-  { name: "Stratège", threshold: 56000, motto: "Le regard porte sur toute la grille à la fois." },
-  { name: "Maître", threshold: 120000, motto: "Aucun raisonnement de cette app ne vous échappe." },
+  { name: "Apprenti", threshold: 400, motto: "Voir une case libre, c'est déjà raisonner." },
+  { name: "Praticien", threshold: 1600, motto: "Les motifs simples n'ont plus de secret." },
+  { name: "Analyste", threshold: 4800, motto: "Un candidat verrouillé ne passe plus inaperçu." },
+  { name: "Tacticien", threshold: 12000, motto: "Les sous-ensembles se lisent d'un coup d'œil." },
+  { name: "Stratège", threshold: 28000, motto: "Le regard porte sur toute la grille à la fois." },
+  { name: "Maître", threshold: 60000, motto: "Aucun raisonnement de cette app ne vous échappe." },
 ];
 
 export function gradeFor(points) {
@@ -319,7 +320,7 @@ export class Game {
 
     this.history = [];
     this.elapsed = 0;
-    this.timeBonus = 0;
+    this.timeFactor = 0;
     this.mistakes = 0;
     this.hintsUsed = 0;
 
@@ -505,21 +506,10 @@ export class Game {
     if (this.isComplete) {
       // La prime se verse une fois, à la dernière case posée — jamais avant,
       // sinon elle fondrait à chaque seconde qui passe sous les yeux du joueur.
-      if (this.timeBonus === 0) {
-        /*
-          La prime ne peut jamais dépasser ce que le raisonnement a rapporté.
-
-          Sans ce plafond, le chemin le plus rentable du jeu consistait à se
-          faire tout expliquer et à cliquer « Appliquer » aussi vite que
-          possible : zéro raisonnement, une minute au compteur, et un score
-          supérieur à celui d'un joueur honnête. La rapidité récompense qui
-          raisonne vite, pas qui expédie — elle n'a donc rien à créditer là où
-          il n'y a pas eu de raisonnement.
-        */
-        this.timeBonus = Math.min(
-          primeDeTemps(this.difficulty, this.elapsed),
-          this.gameQuarters
-        );
+      // Le coefficient se fige à la dernière case posée. Sans cela il
+      // s'éroderait sous les yeux du joueur pendant qu'il lit sa fiche.
+      if (this.timeFactor === 0) {
+        this.timeFactor = coefficientDeTemps(this.difficulty, this.elapsed);
       }
       clearSaved(this.dailyDay !== null ? "defi" : "libre");
       if (this.dailyDay !== null) Daily.markDone(this.dailyDay, this.gamePoints);
@@ -605,9 +595,10 @@ export class Game {
     this.candidatesSeenThisPass = this.autoCandidates;
   }
 
-  /** Le score de la partie : les raisonnements, plus la rapidité. */
+  /** Le score de la partie : les raisonnements, pesés par la rapidité. */
   get gamePoints() {
-    return this.gameQuarters + this.timeBonus;
+    const coef = this.timeFactor || coefficientDeTemps(this.difficulty, this.elapsed);
+    return Math.round(this.gameQuarters * coef);
   }
 
   /** La part due au seul raisonnement, sans la rapidité. */
@@ -696,7 +687,7 @@ export class Game {
       eliminated: this.eliminated,
       autoCandidates: this.autoCandidates,
       elapsed: this.elapsed,
-      timeBonus: this.timeBonus,
+      timeFactor: this.timeFactor,
       mistakes: this.mistakes,
       hintsUsed: this.hintsUsed,
       gameQuarters: this.gameQuarters,
@@ -726,7 +717,7 @@ export class Game {
       game.autoCandidates = !!s.autoCandidates;
       game.candidatesSeenThisPass = !!s.autoCandidates;
       game.elapsed = s.elapsed ?? 0;
-      game.timeBonus = s.timeBonus ?? 0;
+      game.timeFactor = s.timeFactor ?? 0;
       game.mistakes = s.mistakes ?? 0;
       game.hintsUsed = s.hintsUsed ?? 0;
       game.gameQuarters = s.gameQuarters ?? 0;

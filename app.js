@@ -472,7 +472,10 @@ function renderGame() {
 
   // Grille, avec les marques de l'indice si le palier les autorise
   const hint = game.hint;
-  const showMarks = hint && hint.stage === "explained";
+  // Le premier palier nomme le raisonnement ET montre où il se joue. Nommer
+  // seul laissait le joueur chercher un motif sur quatre-vingt-une cases, ce
+  // qui n'est pas une aide mais une devinette.
+  const showMarks = Boolean(hint);
   screen.appendChild(
     renderGrid(game, {
       marks: showMarks ? hint.deduction.highlights : null,
@@ -523,8 +526,8 @@ function renderHintCard(game, hint) {
   const row = el(`<div class="row"></div>`);
 
   if (hint.stage !== "explained") {
-    // Un seul palier reste au-delà du nom : l'explication, qui montre les cases
-    // et ne rapporte plus rien.
+    // Un seul palier reste au-delà : l'explication détaillée, qui déroule le
+    // raisonnement sur cette position précise et ne rapporte plus rien.
     const reste = neutralised ? 0 : COST[technique] * ASSISTANCE.given;
     const label =
       "M'expliquer" + (reste > 0 ? ` — ${reste} pt${reste > 1 ? "s" : ""}` : " — 0 pt");
@@ -647,7 +650,7 @@ function finish(game) {
   state.result = {
     points: game.gamePoints,
     raisonnement: game.reasoningPoints,
-    rapidite: game.timeBonus,
+    coef: game.timeFactor,
     time: formatTime(game.elapsed),
     breakdown: game.breakdown,
     daily: game.dailyDay !== null,
@@ -677,7 +680,7 @@ function renderResult() {
   card.appendChild(
     el(`<div class="halves">
       <div><span class="hv">${r.raisonnement}</span><span class="hl">raisonnement</span></div>
-      <div><span class="hv">${r.rapidite}</span><span class="hl">rapidité</span></div>
+      <div><span class="hv">×${r.coef.toFixed(2).replace(".", ",")}</span><span class="hl">rapidité</span></div>
     </div>`)
   );
 
@@ -885,8 +888,9 @@ function renderGrades() {
 
   screen.appendChild(
     el(`<p class="lesson-text" style="color:var(--slate);text-align:center">
-      Les points comptent les raisonnements franchis, jamais la vitesse.
-      Un motif trouvé seul vaut quatre fois un motif expliqué.</p>`)
+      Les points comptent les raisonnements franchis. Un motif trouvé seul vaut
+      quatre fois un motif expliqué. La vitesse ne fait que peser ce total :
+      elle ne crée aucun point là où il n'y en a pas.</p>`)
   );
 
   return screen;
@@ -1106,7 +1110,8 @@ function renderPanel() {
     card.appendChild(el(`<h2>Prendre un indice</h2>`));
     card.appendChild(
       el(`<p class="lesson-text">L'indice ne donnera pas de chiffre : il nommera
-        le raisonnement à tenir, et vous laissera le trouver.</p>`)
+        le raisonnement à tenir et montrera où il se joue, en vous laissant
+        comprendre pourquoi.</p>`)
     );
     card.appendChild(
       el(`<p class="lesson-text">${
@@ -1114,11 +1119,11 @@ function renderPanel() {
           ? "Aucun raisonnement connu ne s'applique ici."
           : perdu
             ? "Ce passage ne rapporte déjà plus de points : l'indice ne vous coûtera rien."
-            : `Ce passage vaut <strong>${plein} points</strong>. Le nommer le ramènera à <strong>${apres}</strong> — il vous restera à le trouver. L'explication complète, elle, montre les cases et ne rapporte plus rien.`
+            : `Ce passage vaut <strong>${plein} points</strong>. Le nommer et vous montrer où il se joue le ramènera à <strong>${apres}</strong> — il vous restera à comprendre pourquoi. L'explication complète, elle, ne rapporte plus rien.`
       }</p>`)
     );
 
-    const oui = el(`<button class="wide-button">Nommer le raisonnement</button>`);
+    const oui = el(`<button class="wide-button">Nommer et montrer où</button>`);
     oui.onclick = () => {
       state.panel = null;
       game.askForHint();
