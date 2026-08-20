@@ -294,6 +294,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
+  /* Les lignes doivent être déclarées au même titre que les colonnes. Sans
+     cela, chacune prend la hauteur de son contenu : une ligne vide se tasse,
+     une ligne pleine s'étire, et les cases cessent d'être carrées. */
+  grid-template-rows: repeat(9, 1fr);
   aspect-ratio: 1;
   background: var(--hairline);
   border: 2px solid var(--block-line);
@@ -305,6 +309,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .cell {
   position: relative;
+  /* Empêche le contenu d'imposer sa taille à la case. */
+  min-width: 0;
+  min-height: 0;
   background: var(--cell-plain);
   display: grid;
   place-items: center;
