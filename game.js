@@ -597,8 +597,17 @@ export class Game {
 
   /** Le score de la partie : les raisonnements, pesés par la rapidité. */
   get gamePoints() {
-    const coef = this.timeFactor || coefficientDeTemps(this.difficulty, this.elapsed);
-    return Math.round(this.gameQuarters * coef);
+    /*
+      Tant que la partie court, le score affiché est celui du raisonnement seul.
+
+      Appliquer le coefficient en direct avait deux effets absurdes : un gain
+      annoncé « +4 » faisait monter le total de huit, et le score s'érodait de
+      lui-même entre deux coups, puisque le coefficient baisse à chaque seconde.
+      La rapidité se mesure sur la partie entière : elle ne peut donc être
+      connue qu'à la dernière case posée.
+    */
+    if (!this.timeFactor) return this.gameQuarters;
+    return Math.round(this.gameQuarters * this.timeFactor);
   }
 
   /** La part due au seul raisonnement, sans la rapidité. */
