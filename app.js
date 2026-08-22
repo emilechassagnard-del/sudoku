@@ -120,6 +120,9 @@ async function boot() {
   }
   installerMesure();
   render();
+  // Un défi reçu par lien s'ouvre une fois les grilles chargées : il faut le
+  // moteur en place pour construire la partie.
+  defiDepuisAdresse();
 }
 
 // MARK: - Utilitaires de rendu
@@ -318,6 +321,30 @@ function describeLevel(level) {
     case "expert": return "sous-ensembles";
     default: return "X-Wing, XY-Wing, Swordfish";
   }
+}
+
+/*
+  Ouvre un défi reçu par lien.
+
+  La grille voyage avec le défi plutôt que sous forme de numéro : celui qui
+  reçoit le lien joue exactement la même position, même si le stock de grilles a
+  changé depuis.
+*/
+async function ouvrirDefi(id) {
+  const reponse = await Classement.lireDefi(id);
+  if (reponse.erreur || !reponse.defi) {
+    toast(reponse.erreur ?? "Ce défi est introuvable.");
+    return;
+  }
+  const d = reponse.defi;
+  state.defiEnCours = { id: d.id, pseudo: d.pseudo, points: d.points, temps: d.temps };
+  state.game = new Game(
+    { puzzle: d.grille, solution: d.solution, difficulty: DIFFICULTIES.indexOf(d.niveau ?? "moyen") },
+    {}
+  );
+  noter("defi-ami-commence");
+  go("game");
+  toast(`${d.pseudo} vous défie : ${d.points} points à battre`);
 }
 
 function startNew(level) {
@@ -687,6 +714,11 @@ function finish(game) {
   const classement =
     game.dailyDay === null ? null : Classement.inscrit() ? "envoi" : "absent";
 
+  // Un défi relevé se dépose aussi, pour que celui qui l'a lancé voie le résultat.
+  if (state.defiEnCours && Classement.inscrit()) {
+    Classement.releverDefi(state.defiEnCours.id, game.gamePoints, game.elapsed);
+  }
+
   if (classement === "envoi") {
     Classement.deposer(game.dailyDay, game.gamePoints, game.difficulty).then((reponse) => {
       if (!state.result) return;
@@ -699,6 +731,13 @@ function finish(game) {
   state.result = {
     classement,
     classementErreur: null,
+    // De quoi proposer un défi sur cette grille précise.
+    grille: game.puzzle.values.join(""),
+    solution: game.solutionText,
+    niveau: game.difficulty,
+    secondes: game.elapsed,
+    defiId: null,
+    defiReleve: state.defiEnCours ?? null,
     points: game.gamePoints,
     raisonnement: game.reasoningPoints,
     coef: game.timeFactor,
@@ -780,6 +819,65 @@ function renderResult() {
     );
   }
 
+  /*
+    Le défi : la seule chose qui fasse venir de nouveaux joueurs.
+
+    On ne le propose qu'aux inscrits, parce qu'un défi sans nom ne veut rien
+    dire — celui qui le reçoit doit savoir qui l'a lancé.
+  */
+  if (Classement.inscrit() && !r.defiReleve) {
+    if (r.defiId) {
+      const lien = Classement.lienDefi(r.defiId);
+      const partager = el(`<button class="wide-button">Envoyer le défi</button>`);
+      partager.onclick = async () => {
+        const texte = `Je te défie sur cette grille : ${r.points} points à battre.`;
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: "Sudophile", text: texte, url: lien });
+            return;
+          } catch {
+            /* partage refusé : on retombe sur la copie */
+          }
+        }
+        try {
+          await navigator.clipboard.writeText(`${texte} ${lien}`);
+          toast("Lien copié — collez-le où vous voulez");
+        } catch {
+          toast("Copie impossible");
+        }
+      };
+      card.appendChild(partager);
+    } else {
+      const defier = el(`<button class="ghost-button">Défier un ami sur cette grille</button>`);
+      defier.onclick = async () => {
+        defier.disabled = true;
+        const reponse = await Classement.creerDefi(
+          r.grille, r.solution, r.points, r.secondes, r.niveau
+        );
+        defier.disabled = false;
+        if (reponse.erreur) {
+          toast(reponse.erreur);
+          return;
+        }
+        state.result.defiId = reponse.id;
+        render();
+      };
+      card.appendChild(defier);
+    }
+  }
+
+  // Le verdict, quand la partie relevait un défi.
+  if (r.defiReleve) {
+    const d = r.defiReleve;
+    const verdict =
+      r.points > d.points
+        ? `Vous battez ${echapper(d.pseudo)} : ${r.points} contre ${d.points}.`
+        : r.points === d.points
+          ? `Égalité parfaite avec ${echapper(d.pseudo)} : ${r.points} points.`
+          : `${echapper(d.pseudo)} garde l'avantage : ${d.points} contre ${r.points}.`;
+    card.appendChild(el(`<p class="lesson-text" style="text-align:center">${verdict}</p>`));
+  }
+
   const again = el(`<button class="wide-button">Retour à l'accueil</button>`);
   again.onclick = () => {
     state.result = null;
@@ -805,11 +903,12 @@ const PERIODE_NOM = { jour: "Aujourd'hui", semaine: "Cette semaine", mois: "Ce m
 */
 async function chargerClassement() {
   const periode = state.periode ?? "jour";
+  const cercle = state.cercle ?? "tous";
   state.tableau = { chargement: true };
   render();
-  const reponse = await Classement.lire(periode);
+  const reponse = await Classement.lire(periode, cercle);
   // Le joueur a pu changer d'onglet pendant l'attente : on ne réécrit rien.
-  if ((state.periode ?? "jour") !== periode) return;
+  if ((state.periode ?? "jour") !== periode || (state.cercle ?? "tous") !== cercle) return;
   state.tableau = reponse;
   render();
 }
@@ -829,6 +928,26 @@ function renderClassement() {
       tout le monde y joue la même grille. Les semaines et les mois additionnent
       les défis.</p>`)
   );
+
+  /*
+    Tout le monde, ou ses amis seulement.
+
+    Le sélecteur ne s'affiche qu'une fois inscrit : sans pseudonyme il n'y a ni
+    amis ni cercle, et proposer un choix vide n'apprend rien au joueur.
+  */
+  if (Classement.inscrit()) {
+    const cercles = el(`<div class="choices"></div>`);
+    for (const [cle, nom] of [["tous", "Tout le monde"], ["amis", "Entre amis"]]) {
+      const actif = (state.cercle ?? "tous") === cle;
+      const pastille = el(`<button class="pill ${actif ? "on" : ""}">${nom}</button>`);
+      pastille.onclick = () => {
+        state.cercle = cle;
+        chargerClassement();
+      };
+      cercles.appendChild(pastille);
+    }
+    screen.appendChild(cercles);
+  }
 
   // Les trois périodes.
   const onglets = el(`<div class="choices"></div>`);
@@ -864,8 +983,13 @@ function renderClassement() {
 
   if (!t.entrees.length) {
     screen.appendChild(
-      el(`<p class="lesson-text" style="text-align:center">Personne n'a encore
-        terminé le défi. La première place est libre.</p>`)
+      el(
+        (state.cercle ?? "tous") === "amis"
+          ? `<p class="lesson-text" style="text-align:center">Aucun de vos amis
+             n'a encore joué ce défi — à moins que vous n'en ayez pas encore.</p>`
+          : `<p class="lesson-text" style="text-align:center">Personne n'a encore
+             terminé le défi. La première place est libre.</p>`
+      )
     );
   } else {
     const liste = el(`<div class="rank-list"></div>`);
@@ -916,6 +1040,9 @@ function renderClassement() {
         Ni compte, ni mot de passe, ni adresse.</p>`)
     );
   } else {
+    const amis = el(`<button class="wide-button">Mes amis</button>`);
+    amis.onclick = () => go("amis");
+    screen.appendChild(amis);
     screen.appendChild(
       el(`<p class="footnote" style="text-align:center">Vous jouez sous le nom
         de ${echapper(Classement.pseudo())}.</p>`)
@@ -927,6 +1054,132 @@ function renderClassement() {
     };
     screen.appendChild(partir);
   }
+
+  return screen;
+}
+
+
+// MARK: - Les amis
+
+async function chargerAmis() {
+  state.amis = { chargement: true };
+  render();
+  const [liste, codes] = await Promise.all([Classement.mesAmis(), Classement.mesCodes()]);
+  state.amis = liste.erreur ? { erreur: liste.erreur } : { liste: liste.amis ?? [] };
+  state.monCode = codes.erreur ? null : codes.code;
+  render();
+}
+
+function renderAmis() {
+  const screen = el(`<div class="screen"></div>`);
+
+  const bar = el(`<div class="top-bar"></div>`);
+  const back = el(`<button class="icon-button">‹</button>`);
+  back.onclick = () => go("classement");
+  bar.appendChild(back);
+  bar.appendChild(el(`<h2>Mes amis</h2>`));
+  screen.appendChild(bar);
+
+  /*
+    Son propre code, en évidence et lisible.
+
+    C'est l'objet que le joueur va recopier dans un message : il doit se lire
+    d'un coup d'œil, sans ambiguïté entre un zéro et un O — l'alphabet employé
+    exclut d'ailleurs les caractères qui se confondent.
+  */
+  screen.appendChild(
+    el(`<p class="principle" style="color:var(--slate)">Donnez ce code à qui vous
+      voulez ajouter. Il suffit à vous retrouver.</p>`)
+  );
+
+  const carte = el(`<div class="code-card"></div>`);
+  carte.appendChild(el(`<div class="code-label">Votre code</div>`));
+  carte.appendChild(el(`<div class="code-value">${echapper(state.monCode ?? "…")}</div>`));
+  if (state.monCode) {
+    const copier = el(`<button class="ghost-button">Copier</button>`);
+    copier.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(state.monCode);
+        toast("Code copié");
+      } catch {
+        toast("Copie impossible — recopiez-le à la main");
+      }
+    };
+    carte.appendChild(copier);
+  }
+  screen.appendChild(carte);
+
+  // L'ajout par code.
+  const ajout = el(`<div class="code-add"></div>`);
+  const champ = el(`<input class="text-field" placeholder="Code d'un ami" maxlength="9">`);
+  champ.value = state.codeSaisi ?? "";
+  champ.oninput = () => {
+    state.codeSaisi = champ.value;
+  };
+  ajout.appendChild(champ);
+  const valider = el(`<button class="wide-button">Ajouter</button>`);
+  valider.onclick = async () => {
+    const saisi = (state.codeSaisi ?? "").trim();
+    if (!saisi) return;
+    valider.disabled = true;
+    const reponse = await Classement.ajouterAmi(saisi);
+    valider.disabled = false;
+    if (reponse.erreur) {
+      toast(reponse.erreur);
+      return;
+    }
+    state.codeSaisi = "";
+    toast(`${reponse.pseudo} est maintenant votre ami`);
+    chargerAmis();
+  };
+  ajout.appendChild(valider);
+  screen.appendChild(ajout);
+
+  const a = state.amis;
+  if (!a || a.chargement) {
+    screen.appendChild(el(`<p class="lesson-text" style="text-align:center">Chargement…</p>`));
+    return screen;
+  }
+  if (a.erreur) {
+    screen.appendChild(el(`<p class="lesson-text" style="text-align:center">${echapper(a.erreur)}</p>`));
+    const reessayer = el(`<button class="ghost-button">Réessayer</button>`);
+    reessayer.onclick = () => chargerAmis();
+    screen.appendChild(reessayer);
+    return screen;
+  }
+
+  if (!a.liste.length) {
+    screen.appendChild(
+      el(`<p class="lesson-text" style="text-align:center">Vous n'avez pas encore
+        d'amis ici. Envoyez votre code à quelqu'un.</p>`)
+    );
+  } else {
+    const liste = el(`<div class="rank-list"></div>`);
+    for (const ami of a.liste) {
+      const ligne = el(`<div class="rank-row">
+        <span class="rn">${echapper(ami.pseudo)}</span>
+        <span class="rp" style="font-size:12px;color:var(--slate)">${echapper(ami.code ?? "")}</span>
+      </div>`);
+      const retirer = el(`<button class="icon-button" title="Retirer">×</button>`);
+      retirer.onclick = async () => {
+        const reponse = await Classement.retirerAmi(ami.code);
+        if (reponse.erreur) toast(reponse.erreur);
+        else chargerAmis();
+      };
+      ligne.appendChild(retirer);
+      liste.appendChild(ligne);
+    }
+    screen.appendChild(liste);
+  }
+
+  // La reprise du compte ailleurs.
+  const reprise = el(`<button class="ghost-button">Jouer sur un autre appareil</button>`);
+  reprise.onclick = () => {
+    state.panel = "reprise";
+    state.repriseCode = null;
+    render();
+  };
+  screen.appendChild(reprise);
 
   return screen;
 }
@@ -1378,6 +1631,88 @@ function renderPanel() {
     card.appendChild(non);
   }
 
+  if (state.panel === "reprise") {
+    card.appendChild(el(`<h2>Jouer sur un autre appareil</h2>`));
+    card.appendChild(
+      el(`<p class="lesson-text">Votre compte tient dans ce navigateur. Pour le
+        retrouver ailleurs, notez le code ci-dessous et saisissez-le sur l'autre
+        appareil.</p>`)
+    );
+
+    if (state.repriseCode) {
+      /*
+        Le code n'est montré qu'ici, et une seule fois.
+
+        Le serveur n'en garde qu'une empreinte : ni lui ni moi ne pouvons le
+        retrouver ensuite. C'est le prix de l'absence de mot de passe, et il
+        faut le dire au joueur avant qu'il ne ferme la fenêtre.
+      */
+      const carte = el(`<div class="code-card"></div>`);
+      carte.appendChild(el(`<div class="code-label">À noter maintenant</div>`));
+      carte.appendChild(el(`<div class="code-value small">${echapper(state.repriseCode)}</div>`));
+      const copier = el(`<button class="ghost-button">Copier</button>`);
+      copier.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(state.repriseCode);
+          toast("Code copié");
+        } catch {
+          toast("Copie impossible — recopiez-le à la main");
+        }
+      };
+      carte.appendChild(copier);
+      card.appendChild(carte);
+      card.appendChild(
+        el(`<p class="footnote">Ce code ne sera plus jamais affiché. Personne ne
+          peut le retrouver, pas même nous.</p>`)
+      );
+    } else {
+      const creer = el(`<button class="wide-button">Obtenir mon code</button>`);
+      creer.onclick = async () => {
+        creer.disabled = true;
+        const reponse = await Classement.mesCodes(true);
+        creer.disabled = false;
+        if (reponse.erreur) {
+          toast(reponse.erreur);
+          return;
+        }
+        state.repriseCode = reponse.reprise;
+        render();
+      };
+      card.appendChild(creer);
+      card.appendChild(
+        el(`<p class="footnote">Si vous en aviez déjà un, il cessera aussitôt de
+          fonctionner.</p>`)
+      );
+
+      card.appendChild(el(`<h3 style="margin-top:18px">Ou reprendre un compte</h3>`));
+      const champ = el(`<input class="text-field" placeholder="mot-mot-mot-mot-mot">`);
+      champ.value = state.repriseSaisie ?? "";
+      champ.oninput = () => { state.repriseSaisie = champ.value; };
+      card.appendChild(champ);
+      const reprendre = el(`<button class="wide-button">Reprendre ce compte</button>`);
+      reprendre.onclick = async () => {
+        const saisi = (state.repriseSaisie ?? "").trim();
+        if (!saisi) return;
+        reprendre.disabled = true;
+        const reponse = await Classement.reprendre(saisi);
+        reprendre.disabled = false;
+        if (reponse.erreur) {
+          toast(reponse.erreur);
+          return;
+        }
+        state.repriseSaisie = "";
+        state.panel = null;
+        toast(`Vous jouez de nouveau sous le nom de ${reponse.pseudo}`);
+        chargerAmis();
+      };
+      card.appendChild(reprendre);
+    }
+
+    const fermer = el(`<button class="ghost-button">Fermer</button>`);
+    fermer.onclick = () => { state.panel = null; state.repriseCode = null; render(); };
+    card.appendChild(fermer);
+  }
+
   if (state.panel === "quitter-classement") {
     card.appendChild(el(`<h2>Quitter le classement</h2>`));
     card.appendChild(
@@ -1474,12 +1809,29 @@ function stopTimer() {
 
 // MARK: - Navigation
 
+/*
+  Un défi dans l'adresse : ?defi=XXXXXXXX
+
+  On retire le paramètre de la barre d'adresse une fois lu, sans quoi un simple
+  rechargement de page relancerait le défi et effacerait la partie en cours.
+*/
+function defiDepuisAdresse() {
+  const params = new URLSearchParams(location.search);
+  const id = params.get("defi");
+  if (!id) return;
+  history.replaceState(null, "", location.pathname);
+  ouvrirDefi(id);
+}
+
 function go(screen) {
   state.screen = screen;
   if (screen === "game") startTimer();
   else stopTimer();
   window.scrollTo(0, 0);
   render();
+  // Le chargement vient après le premier rendu : l'écran s'affiche aussitôt,
+  // avec sa mention d'attente, plutôt que de laisser l'ancien en place.
+  if (screen === "amis") chargerAmis();
 }
 
 function render() {
@@ -1491,6 +1843,9 @@ function render() {
       break;
     case "classement":
       app.appendChild(renderClassement());
+      break;
+    case "amis":
+      app.appendChild(renderAmis());
       break;
     case "techniques":
       app.appendChild(renderTechniques());

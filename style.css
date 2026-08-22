@@ -741,3 +741,43 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 8px;
 }
 .pseudo-input:focus { outline: 2px solid var(--select-ring); outline-offset: -1px; }
+
+/* Codes d'ami et de reprise */
+.code-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  margin: 10px 0 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.code-label { font-size: 11px; color: var(--slate); letter-spacing: 0.04em; text-transform: uppercase; }
+.code-value {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  word-break: break-all;
+  text-align: center;
+}
+.code-value.small { font-size: 16px; letter-spacing: 0.02em; line-height: 1.5; }
+
+.code-add { display: flex; gap: 8px; align-items: stretch; margin-bottom: 14px; }
+.code-add .wide-button { width: auto; white-space: nowrap; margin: 0; }
+
+.text-field {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+}
+.text-field:focus { outline: 2px solid var(--select-ring); outline-offset: -1px; }
